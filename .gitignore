@@ -1,0 +1,21 @@
+# General
+.DS_Store
+.idea
+.vscode/
+
+# Flutter App: madeinworld_app
+/madeinworld_app/.dart_tool/
+/madeinworld_app/.metadata
+/madeinworld_app/.packages
+/madeinworld_app/build/
+/madeinworld_app/ios/build/
+/madeinworld_app/ios/Pods/
+/madeinworld_app/ios/Runner.xcworkspace
+/madeinworld_app/ios/Flutter/Secrets.xcconfig
+
+# Backend (example for Node.js - adjust as needed)
+/madeinworld_backend/node_modules/
+/madeinworld_backend/.env
+/madeinworld_backend/npm-debug.log
+
+# Docs (if you have any generated files)
