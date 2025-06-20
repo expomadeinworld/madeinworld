@@ -46,3 +46,4 @@ app.*.map.json
 
 # Secrets configuration file (contains API keys)
 ios/Flutter/Secrets.xcconfig
+android/local.properties
