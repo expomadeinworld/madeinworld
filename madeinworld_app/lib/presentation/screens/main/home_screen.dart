@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive_utils.dart';
-import '../../../data/services/mock_data_service.dart';
+import '../../../data/services/api_service.dart';
+import '../../../data/models/product.dart';
 import '../../widgets/decorative_backdrop.dart';
 import '../../widgets/common/product_card.dart';
 import '../../providers/location_provider.dart';
@@ -19,16 +20,21 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  late Future<List<Product>> _featuredProductsFuture;
+  final ApiService _apiService = ApiService();
+
   @override
   void initState() {
     super.initState();
     // Location services are now automatically initialized by LocationProvider constructor
     // No manual initialization needed
+
+    // Initialize the featured products future
+    _featuredProductsFuture = _apiService.fetchProducts(featured: true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final featuredProducts = MockDataService.getFeaturedProducts();
 
     return Scaffold(
       body: Stack(
@@ -58,8 +64,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 32)),
 
-                  // Hot Recommendations Section
-                  _buildHotRecommendations(context, featuredProducts),
+                  // Hot Recommendations Section with FutureBuilder
+                  FutureBuilder<List<Product>>(
+                    future: _featuredProductsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return _buildLoadingRecommendations(context);
+                      } else if (snapshot.hasError) {
+                        return _buildErrorRecommendations(context, snapshot.error.toString());
+                      } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                        return _buildHotRecommendations(context, snapshot.data!);
+                      } else {
+                        return _buildEmptyRecommendations(context);
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -379,6 +398,151 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               );
             },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoadingRecommendations(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          child: Text(
+            '热门推荐',
+            style: AppTextStyles.responsiveMajorHeader(context),
+          ),
+        ),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          child: Center(
+            child: Column(
+              children: [
+                CircularProgressIndicator(
+                  color: AppColors.themeRed,
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                Text(
+                  '正在加载推荐商品...',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorRecommendations(BuildContext context, String error) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          child: Text(
+            '热门推荐',
+            style: AppTextStyles.responsiveMajorHeader(context),
+          ),
+        ),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.secondaryText,
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                Text(
+                  '加载失败',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 8)),
+                Text(
+                  '请检查网络连接后重试',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _featuredProductsFuture = _apiService.fetchProducts(featured: true);
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.themeRed,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text('重试'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyRecommendations(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          child: Text(
+            '热门推荐',
+            style: AppTextStyles.responsiveMajorHeader(context),
+          ),
+        ),
+        SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 48,
+                  color: AppColors.secondaryText,
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                Text(
+                  '暂无推荐商品',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 8)),
+                Text(
+                  '请稍后再试或浏览其他商品',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
       ],

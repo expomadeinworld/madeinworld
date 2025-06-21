@@ -13,10 +13,10 @@ class Category {
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
-      id: json['id'],
+      id: json['id'].toString(), // Convert int to string for compatibility
       name: json['name'],
       storeTypeAssociation: StoreTypeAssociation.values.firstWhere(
-        (e) => e.toString().split('.').last == json['store_type_association'],
+        (e) => e.toString().split('.').last.toLowerCase() == json['store_type_association'].toString().toLowerCase(),
       ),
     );
   }

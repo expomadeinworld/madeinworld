@@ -23,14 +23,14 @@ class Store {
 
   factory Store.fromJson(Map<String, dynamic> json) {
     return Store(
-      id: json['id'],
+      id: json['id'].toString(), // Convert int to string for compatibility
       name: json['name'],
       city: json['city'],
       address: json['address'],
       latitude: json['latitude'].toDouble(),
       longitude: json['longitude'].toDouble(),
       type: StoreType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['type'],
+        (e) => e.toString().split('.').last.toLowerCase() == json['type'].toString().toLowerCase(),
       ),
       isActive: json['is_active'] ?? true,
     );

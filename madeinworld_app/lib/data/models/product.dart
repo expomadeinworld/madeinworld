@@ -46,21 +46,21 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'],
+      id: json['id'].toString(), // Convert int to string for compatibility
       sku: json['sku'],
       title: json['title'],
       descriptionShort: json['description_short'],
       descriptionLong: json['description_long'],
-      manufacturerId: json['manufacturer_id'],
+      manufacturerId: json['manufacturer_id'].toString(), // Convert int to string
       storeType: StoreType.values.firstWhere(
-        (e) => e.toString().split('.').last == json['store_type'],
+        (e) => e.toString().split('.').last.toLowerCase() == json['store_type'].toString().toLowerCase(),
       ),
       mainPrice: json['main_price'].toDouble(),
       strikethroughPrice: json['strikethrough_price']?.toDouble(),
       isActive: json['is_active'] ?? true,
       isFeatured: json['is_featured'] ?? false,
-      imageUrls: List<String>.from(json['image_urls']),
-      categoryIds: List<String>.from(json['category_ids']),
+      imageUrls: List<String>.from(json['image_urls'] ?? []),
+      categoryIds: List<String>.from(json['category_ids'] ?? []),
       stockQuantity: json['stock_quantity'],
     );
   }

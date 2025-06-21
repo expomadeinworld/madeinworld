@@ -5,7 +5,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
 import '../../../../data/models/category.dart';
-import '../../../../data/services/mock_data_service.dart';
+import '../../../../data/services/api_service.dart';
+import '../../../../data/models/product.dart';
 import '../../../../core/enums/store_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
@@ -197,78 +198,152 @@ class _ProductsTab extends StatefulWidget {
 
 class _ProductsTabState extends State<_ProductsTab> {
   String? _selectedCategoryId;
-  
+  final ApiService _apiService = ApiService();
+  late Future<List<Category>> _categoriesFuture;
+  late Future<List<Product>> _productsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.retail);
+    _productsFuture = _apiService.fetchProducts(storeType: StoreType.retail);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final categories = MockDataService.getCategoriesByStoreType(StoreType.retail);
-    final allProducts = MockDataService.getProductsByStoreType(StoreType.retail);
-    final filteredProducts = _selectedCategoryId == null
-        ? allProducts
-        : allProducts.where((product) => 
-            product.categoryIds.contains(_selectedCategoryId)).toList();
-
-    return Column(
-      children: [
-        // Categories
-        Container(
-          height: 60,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: categories.length + 1, // +1 for "All" category
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return CategoryChip(
-                  category: Category(
-                    id: '',
-                    name: '全部',
-                    storeTypeAssociation: StoreTypeAssociation.all,
+    return FutureBuilder<List<dynamic>>(
+      future: Future.wait([_categoriesFuture, _productsFuture]),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.themeRed,
+            ),
+          );
+        } else if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.secondaryText,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '加载失败',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.primaryText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
                   ),
-                  isSelected: _selectedCategoryId == null,
-                  onTap: () {
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '请检查网络连接后重试',
+                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
                     setState(() {
-                      _selectedCategoryId = null;
+                      _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.retail);
+                      _productsFuture = _apiService.fetchProducts(storeType: StoreType.retail);
                     });
                   },
-                );
-              }
-              
-              final category = categories[index - 1];
-              return CategoryChip(
-                category: category,
-                isSelected: _selectedCategoryId == category.id,
-                onTap: () {
-                  setState(() {
-                    _selectedCategoryId = category.id;
-                  });
-                },
-              );
-            },
-          ),
-        ),
-        
-        // Products Grid
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: MasonryGridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              itemCount: filteredProducts.length,
-              itemBuilder: (context, index) {
-                return ProductCard(
-                  product: filteredProducts[index],
-                  onTap: () {
-                    // Navigate to product detail
-                  },
-                );
-              },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.themeRed,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('重试'),
+                ),
+              ],
             ),
-          ),
-        ),
-      ],
+          );
+        } else if (snapshot.hasData) {
+          final categories = snapshot.data![0] as List<Category>;
+          final allProducts = snapshot.data![1] as List<Product>;
+          final filteredProducts = _selectedCategoryId == null
+              ? allProducts
+              : allProducts.where((product) =>
+                  product.categoryIds.contains(_selectedCategoryId)).toList();
+
+          return Column(
+            children: [
+              // Categories
+              Container(
+                height: 60,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: categories.length + 1, // +1 for "All" category
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return CategoryChip(
+                        category: Category(
+                          id: '',
+                          name: '全部',
+                          storeTypeAssociation: StoreTypeAssociation.all,
+                        ),
+                        isSelected: _selectedCategoryId == null,
+                        onTap: () {
+                          setState(() {
+                            _selectedCategoryId = null;
+                          });
+                        },
+                      );
+                    }
+
+                    final category = categories[index - 1];
+                    return CategoryChip(
+                      category: category,
+                      isSelected: _selectedCategoryId == category.id,
+                      onTap: () {
+                        setState(() {
+                          _selectedCategoryId = category.id;
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // Products Grid
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: MasonryGridView.count(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    itemCount: filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      return ProductCard(
+                        product: filteredProducts[index],
+                        onTap: () {
+                          // Navigate to product detail
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        } else {
+          return const Center(
+            child: Text('暂无数据'),
+          );
+        }
+      },
     );
   }
 }

@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Environment files
+.env
+.env.local
+.env.example
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+catalog-service
+*.exe
+
+# Test files
+*_test.go
+test/
+tests/
+
+# Kubernetes manifests (not needed in container)
+kubernetes/
+k8s/
+
+# Docker files (not needed in container)
+Dockerfile
+.dockerignore
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
