@@ -18,4 +18,4 @@
 /madeinworld_backend/.env
 /madeinworld_backend/npm-debug.log
 
-# Docs (if you have any generated files)
+/terraform/.terraform
