@@ -172,7 +172,7 @@ class MockDataService {
       phoneNumber: '+41791234567',
       fullName: '尊贵的用户',
       email: 'user.name@email.com',
-      avatarUrl: 'https://placehold.co/96x96/D92525/FFFFFF?text=M',
+      avatarUrl: 'https://i.pravatar.cc/96',
       role: UserRole.customer,
       createdAt: DateTime.now().subtract(const Duration(days: 30)),
       lastLogin: DateTime.now().subtract(const Duration(hours: 2)),

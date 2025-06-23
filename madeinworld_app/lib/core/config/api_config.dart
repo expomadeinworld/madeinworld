@@ -10,10 +10,10 @@ class ApiConfig {
   
   // Production Configuration
   // Update this with your actual LoadBalancer URL after deployment
-  static const String _prodBaseUrl = 'http://your-loadbalancer-url.com';
+  static const String _prodBaseUrl = 'https://api.expomadeinworld.com';
   
   // Current environment - change this for different builds
-  static const bool _isDevelopment = true;
+  static const bool _isDevelopment = false;
   
   /// Get the current base URL based on environment
   static String get baseUrl => _isDevelopment ? _devBaseUrl : _prodBaseUrl;
