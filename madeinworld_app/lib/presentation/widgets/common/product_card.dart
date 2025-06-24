@@ -34,7 +34,9 @@ class ProductCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: CachedNetworkImage(
-                    imageUrl: product.imageUrls.first,
+                    imageUrl: product.imageUrls.isNotEmpty 
+                        ? product.imageUrls.first 
+                        : 'https://placehold.co/300x300/E2E8F0/6A7485?text=No+Image', // Fallback URL
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
                       color: AppColors.lightRed,
@@ -76,11 +78,11 @@ class ProductCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               
-              // Stock Info (only for unmanned stores)
+              // FIX: Stock Info (only for unmanned stores)
               if (product.storeType == StoreType.unmanned) ...[
                 SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 4)),
                 Text(
-                  '剩余 ${product.displayStock} 件',
+                  '剩余 ${product.displayStock ?? 0} 件', // Use ?? 0 to handle null gracefully
                   style: AppTextStyles.responsiveBodySmall(context).copyWith(
                     color: AppColors.themeRed,
                   ),

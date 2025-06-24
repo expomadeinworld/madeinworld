@@ -11,6 +11,7 @@ import '../../../../core/enums/store_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
 import '../../../providers/cart_provider.dart';
+import '../../../providers/location_provider.dart'; // Import LocationProvider
 import '../../cart/cart_screen.dart';
 
 class UnmannedStoreScreen extends StatefulWidget {
@@ -32,6 +33,9 @@ class _UnmannedStoreScreenState extends State<UnmannedStoreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Access the LocationProvider here
+    final locationProvider = Provider.of<LocationProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -69,8 +73,9 @@ class _UnmannedStoreScreenState extends State<UnmannedStoreScreen> {
                     size: 16,
                   ),
                   const SizedBox(width: 4),
+                  // Use the displayStoreName from the provider
                   Text(
-                    'Via Nassa 店',
+                    locationProvider.displayStoreName,
                     style: AppTextStyles.locationStore.copyWith(fontSize: 12),
                   ),
                   const SizedBox(width: 4),
@@ -264,20 +269,35 @@ class _ProductsTab extends StatefulWidget {
   const _ProductsTab();
 
   @override
-  State<_ProductsTab> createState() => _ProductsTabState();
+  State<_ProductsTab> createState() => __ProductsTabState();
 }
 
-class _ProductsTabState extends State<_ProductsTab> {
+class __ProductsTabState extends State<_ProductsTab> {
   String? _selectedCategoryId;
   final ApiService _apiService = ApiService();
   late Future<List<Category>> _categoriesFuture;
   late Future<List<Product>> _productsFuture;
 
   @override
-  void initState() {
-    super.initState();
-    _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.unmanned);
-    _productsFuture = _apiService.fetchProducts(storeType: StoreType.unmanned);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Fetch data here using the provider
+    _fetchData();
+  }
+
+  void _fetchData() {
+    // Get the current storeId from the provider
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final storeId = locationProvider.nearestStore?.id;
+
+    setState(() {
+      _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.unmanned);
+      // Pass the storeId to the products fetch call
+      _productsFuture = _apiService.fetchProducts(
+        storeType: StoreType.unmanned,
+        storeId: storeId,
+      );
+    });
   }
 
   @override
@@ -320,12 +340,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.unmanned);
-                      _productsFuture = _apiService.fetchProducts(storeType: StoreType.unmanned);
-                    });
-                  },
+                  onPressed: _fetchData, // Use the new fetchData method
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.themeRed,
                     foregroundColor: AppColors.white,

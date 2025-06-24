@@ -36,11 +36,12 @@ INSERT INTO products (product_id, sku, title, description_short, description_lon
 (4, 'LINDT-001', '瑞士莲 巧克力', '丝滑享受', '瑞士莲经典牛奶巧克力，丝滑细腻的口感，甜而不腻，是巧克力爱好者的首选。', 4, 'Unmanned', 4.50, 5.25, TRUE, TRUE);
 
 -- Insert Product Images
+-- FIX: Using a more reliable placeholder service
 INSERT INTO product_images (product_id, image_url, display_order) VALUES
-(1, 'https://placehold.co/300x300/FFF5F5/D92525?text=可口可乐', 0),
-(2, 'https://placehold.co/300x300/FFF5F5/D92525?text=百味来', 0),
-(3, 'https://placehold.co/300x300/FFF5F5/D92525?text=矿泉水', 0),
-(4, 'https://placehold.co/300x300/FFF5F5/D92525?text=巧克力', 0);
+(1, 'https://via.placeholder.com/300/FFF5F5/D92525?text=可口可乐', 0),
+(2, 'https://via.placeholder.com/300/FFF5F5/D92525?text=百味来', 0),
+(3, 'https://via.placeholder.com/300/FFF5F5/D92525?text=矿泉水', 0),
+(4, 'https://via.placeholder.com/300/FFF5F5/D92525?text=巧克力', 0);
 
 -- Insert Product Category Mappings
 INSERT INTO product_category_mapping (product_id, category_id) VALUES
@@ -80,29 +81,12 @@ INSERT INTO users (user_id, phone_number, password_hash, full_name, email, role)
 
 -- Insert a sample customer user (matching mock data)
 INSERT INTO users (user_id, phone_number, password_hash, full_name, email, avatar_url, role) VALUES
-('550e8400-e29b-41d4-a716-446655440000', '+41791234567', '$2a$10$example.hash.here', '尊贵的用户', 'user.name@email.com', 'https://placehold.co/96x96/D92525/FFFFFF?text=M', 'Customer');
+('550e8400-e29b-41d4-a716-446655440000', '+41791234568', '$2a$10$example.hash.here', '尊贵的用户', 'user.name@email.com', 'https://via.placeholder.com/96/D92525/FFFFFF?text=M', 'Customer');
 
 -- Reset sequences to continue from the inserted values
-SELECT setval('manufacturers_manufacturer_id_seq', (SELECT MAX(manufacturer_id) FROM manufacturers));
-SELECT setval('product_categories_category_id_seq', (SELECT MAX(category_id) FROM product_categories));
-SELECT setval('stores_store_id_seq', (SELECT MAX(store_id) FROM stores));
-SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products));
-SELECT setval('product_images_image_id_seq', (SELECT MAX(image_id) FROM product_images));
-SELECT setval('inventory_inventory_id_seq', (SELECT MAX(inventory_id) FROM inventory));
-
--- Verify data insertion
-SELECT 'Manufacturers' as table_name, COUNT(*) as count FROM manufacturers
-UNION ALL
-SELECT 'Product Categories', COUNT(*) FROM product_categories
-UNION ALL
-SELECT 'Stores', COUNT(*) FROM stores
-UNION ALL
-SELECT 'Products', COUNT(*) FROM products
-UNION ALL
-SELECT 'Product Images', COUNT(*) FROM product_images
-UNION ALL
-SELECT 'Product Category Mappings', COUNT(*) FROM product_category_mapping
-UNION ALL
-SELECT 'Inventory Records', COUNT(*) FROM inventory
-UNION ALL
-SELECT 'Users', COUNT(*) FROM users;
+SELECT setval('manufacturers_manufacturer_id_seq', (SELECT MAX(manufacturer_id) FROM manufacturers), true);
+SELECT setval('product_categories_category_id_seq', (SELECT MAX(category_id) FROM product_categories), true);
+SELECT setval('stores_store_id_seq', (SELECT MAX(store_id) FROM stores), true);
+SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
+SELECT setval('product_images_image_id_seq', (SELECT MAX(image_id) FROM product_images), true);
+SELECT setval('inventory_inventory_id_seq', (SELECT MAX(inventory_id) FROM inventory), true);

@@ -6,12 +6,12 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
+	"strings" // IMPORT THIS PACKAGE
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/db"
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/models"
+	"github.com/gin-gonic/gin"
 )
 
 // Handler holds the database connection and provides HTTP handlers
@@ -43,14 +43,15 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		FROM products p
 		WHERE p.is_active = true
 	`
-	
+
 	args := []interface{}{}
 	argIndex := 1
 
 	// Add store type filter
 	if storeType != "" {
 		query += fmt.Sprintf(" AND p.store_type = $%d", argIndex)
-		args = append(args, storeType)
+		// FIX: Capitalize the input to match the PostgreSQL ENUM
+		args = append(args, strings.Title(storeType))
 		argIndex++
 	}
 
@@ -231,6 +232,7 @@ func (h *Handler) GetCategories(c *gin.Context) {
 	args := []interface{}{}
 	if storeType != "" {
 		query += " WHERE store_type_association = $1 OR store_type_association = 'All'"
+		// FIX: Capitalize the input to match the PostgreSQL ENUM
 		args = append(args, strings.Title(storeType))
 	}
 
@@ -283,6 +285,7 @@ func (h *Handler) GetStores(c *gin.Context) {
 	args := []interface{}{}
 	if storeType != "" {
 		query += " AND type = $1"
+		// FIX: Capitalize the input to match the PostgreSQL ENUM
 		args = append(args, strings.Title(storeType))
 	}
 
@@ -421,6 +424,10 @@ func (h *Handler) getProductStock(ctx context.Context, productID int, storeID st
 	var quantity int
 	err := h.db.Pool.QueryRow(ctx, query, args...).Scan(&quantity)
 	if err != nil {
+		// Return nil instead of an error if no rows are found
+		if err.Error() == "no rows in result set" {
+			return nil, nil
+		}
 		return nil, err
 	}
 

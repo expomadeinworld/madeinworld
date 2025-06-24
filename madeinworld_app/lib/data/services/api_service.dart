@@ -1,27 +1,24 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' hide Category; // FIX: Hides the conflicting 'Category' class from this import
 import 'package:http/http.dart' as http;
 import '../models/product.dart';
 import '../models/category.dart';
 import '../models/store.dart';
 import '../../core/enums/store_type.dart';
-
+import '../../core/config/api_config.dart'; // IMPORT THE CORRECT CONFIG
 
 class ApiService {
-  // Base URL for the catalog service
-  // This will be the ALB URL created by the Kubernetes ingress
-  // Replace with actual ALB URL after deployment: kubectl get ingress
-  static const String _baseUrl = 'https://api.madeinworld.com';
-  static const String _apiVersion = '/api/v1';
+  // REMOVED hardcoded _baseUrl and _apiVersion. They will now come from ApiConfig.
 
   // Timeout duration for HTTP requests
-  static const Duration _timeout = Duration(seconds: 30);
+  static final Duration _timeout = ApiConfig.timeout; // Use timeout from ApiConfig
 
   // HTTP client instance
   static final http.Client _client = http.Client();
 
   /// Fetches all products from the API
-  /// 
+  ///
   /// [storeType] - Filter products by store type (optional)
   /// [featured] - Filter only featured products (optional)
   /// [storeId] - Get stock for specific store (optional, for unmanned stores)
@@ -33,27 +30,29 @@ class ApiService {
     try {
       // Build query parameters
       final Map<String, String> queryParams = {};
-      
+
       if (storeType != null) {
         queryParams['store_type'] = storeType.toString().split('.').last;
       }
-      
+
       if (featured != null) {
         queryParams['featured'] = featured.toString();
       }
-      
+
       if (storeId != null) {
         queryParams['store_id'] = storeId;
       }
 
-      // Build URI
-      final uri = Uri.parse('$_baseUrl$_apiVersion/products')
+      // Build URI using the CORRECT base URL from ApiConfig
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/products')
           .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      debugPrint('Fetching products from: $uri'); // Added for debugging
 
       // Make HTTP request
       final response = await _client.get(
         uri,
-        headers: _getHeaders(),
+        headers: ApiConfig.headers, // Use headers from ApiConfig
       ).timeout(_timeout);
 
       // Handle response
@@ -73,13 +72,15 @@ class ApiService {
     } on FormatException {
       throw ApiException('Invalid response format', 0);
     } catch (e) {
+      // Add debug print for any other errors
+      debugPrint('DEBUG: API Error in fetchProducts: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Unexpected error: $e', 0);
     }
   }
 
   /// Fetches a specific product by ID
-  /// 
+  ///
   /// [productId] - The ID of the product to fetch
   /// [storeId] - Get stock for specific store (optional, for unmanned stores)
   Future<Product> fetchProduct(String productId, {String? storeId}) async {
@@ -90,14 +91,16 @@ class ApiService {
         queryParams['store_id'] = storeId;
       }
 
-      // Build URI
-      final uri = Uri.parse('$_baseUrl$_apiVersion/products/$productId')
+      // Build URI using the CORRECT base URL from ApiConfig
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/products/$productId')
           .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      debugPrint('Fetching product from: $uri'); // Added for debugging
 
       // Make HTTP request
       final response = await _client.get(
         uri,
-        headers: _getHeaders(),
+        headers: ApiConfig.headers,
       ).timeout(_timeout);
 
       // Handle response
@@ -119,13 +122,14 @@ class ApiService {
     } on FormatException {
       throw ApiException('Invalid response format', 0);
     } catch (e) {
+      debugPrint('DEBUG: API Error in fetchProduct: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Unexpected error: $e', 0);
     }
   }
 
   /// Fetches all categories from the API
-  /// 
+  ///
   /// [storeType] - Filter categories by store type association (optional)
   Future<List<Category>> fetchCategories({StoreType? storeType}) async {
     try {
@@ -135,14 +139,16 @@ class ApiService {
         queryParams['store_type'] = storeType.toString().split('.').last;
       }
 
-      // Build URI
-      final uri = Uri.parse('$_baseUrl$_apiVersion/categories')
+      // Build URI using the CORRECT base URL from ApiConfig
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/categories')
           .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      debugPrint('Fetching categories from: $uri'); // Added for debugging
 
       // Make HTTP request
       final response = await _client.get(
         uri,
-        headers: _getHeaders(),
+        headers: ApiConfig.headers,
       ).timeout(_timeout);
 
       // Handle response
@@ -162,13 +168,14 @@ class ApiService {
     } on FormatException {
       throw ApiException('Invalid response format', 0);
     } catch (e) {
+      debugPrint('DEBUG: API Error in fetchCategories: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Unexpected error: $e', 0);
     }
   }
 
   /// Fetches all stores from the API
-  /// 
+  ///
   /// [storeType] - Filter stores by type (optional)
   Future<List<Store>> fetchStores({StoreType? storeType}) async {
     try {
@@ -178,14 +185,16 @@ class ApiService {
         queryParams['type'] = storeType.toString().split('.').last;
       }
 
-      // Build URI
-      final uri = Uri.parse('$_baseUrl$_apiVersion/stores')
+      // Build URI using the CORRECT base URL from ApiConfig
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/stores')
           .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      debugPrint('Fetching stores from: $uri'); // Added for debugging
 
       // Make HTTP request
       final response = await _client.get(
         uri,
-        headers: _getHeaders(),
+        headers: ApiConfig.headers,
       ).timeout(_timeout);
 
       // Handle response
@@ -205,6 +214,7 @@ class ApiService {
     } on FormatException {
       throw ApiException('Invalid response format', 0);
     } catch (e) {
+      debugPrint('DEBUG: API Error in fetchStores: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Unexpected error: $e', 0);
     }
@@ -214,22 +224,14 @@ class ApiService {
   Future<bool> checkHealth() async {
     try {
       final response = await _client.get(
-        Uri.parse('$_baseUrl/health'),
-        headers: _getHeaders(),
-      ).timeout(const Duration(seconds: 10));
+        Uri.parse('${ApiConfig.baseUrl}/health'), // Use baseUrl for health check
+        headers: ApiConfig.headers,
+      ).timeout(ApiConfig.healthTimeout);
 
       return response.statusCode == 200;
     } catch (e) {
       return false;
     }
-  }
-
-  /// Helper method to get common HTTP headers
-  Map<String, String> _getHeaders() {
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
   }
 
   /// Dispose the HTTP client
@@ -247,19 +249,4 @@ class ApiException implements Exception {
 
   @override
   String toString() => 'ApiException: $message (Status: $statusCode)';
-}
-
-/// Configuration class for API settings
-class ApiConfig {
-  static String baseUrl = 'https://api.madeinworld.com';
-  
-  /// Update the base URL for the API service
-  static void setBaseUrl(String url) {
-    baseUrl = url;
-  }
-  
-  /// Get the current base URL
-  static String getBaseUrl() {
-    return baseUrl;
-  }
 }
