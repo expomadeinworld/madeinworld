@@ -16,8 +16,10 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { productService } from '../services/api';
+import { useToast } from '../contexts/ToastContext';
 
 const DeleteProductDialog = ({ open, onClose, product, onProductDeleted }) => {
+  const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -26,14 +28,15 @@ const DeleteProductDialog = ({ open, onClose, product, onProductDeleted }) => {
       setLoading(true);
       setError(null);
 
-      // TODO: Implement deleteProduct API call
-      // await productService.deleteProduct(product.id);
-      
-      // For now, simulate successful deletion
-      setTimeout(() => {
-        onProductDeleted();
-        onClose();
-      }, 1000);
+      // Call the real API to delete the product (soft delete)
+      await productService.deleteProduct(product.id);
+      console.log('Product deleted successfully:', product.id);
+
+      showSuccess(`Product "${product.title}" deleted successfully!`);
+
+      // Notify parent component and close dialog
+      onProductDeleted();
+      onClose();
       
     } catch (err) {
       console.error('Error deleting product:', err);
@@ -71,7 +74,7 @@ const DeleteProductDialog = ({ open, onClose, product, onProductDeleted }) => {
         </Box>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ pt: 6, pb: 2 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}

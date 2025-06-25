@@ -3,6 +3,7 @@ import '../models/category.dart';
 import '../models/store.dart';
 import '../models/user.dart';
 import '../../core/enums/store_type.dart';
+import '../../core/enums/mini_app_type.dart';
 
 class MockDataService {
   static List<Category> getCategories() {
@@ -11,31 +12,37 @@ class MockDataService {
         id: '1',
         name: '饮料',
         storeTypeAssociation: StoreTypeAssociation.all,
+        miniAppAssociation: [MiniAppType.retailStore, MiniAppType.unmannedStore],
       ),
       Category(
         id: '2',
         name: '零食',
         storeTypeAssociation: StoreTypeAssociation.all,
+        miniAppAssociation: [MiniAppType.retailStore, MiniAppType.unmannedStore],
       ),
       Category(
         id: '3',
         name: '意面',
         storeTypeAssociation: StoreTypeAssociation.retail,
+        miniAppAssociation: [MiniAppType.retailStore],
       ),
       Category(
         id: '4',
         name: '巧克力',
         storeTypeAssociation: StoreTypeAssociation.unmanned,
+        miniAppAssociation: [MiniAppType.unmannedStore],
       ),
       Category(
         id: '5',
         name: '水果',
         storeTypeAssociation: StoreTypeAssociation.all,
+        miniAppAssociation: [MiniAppType.retailStore, MiniAppType.unmannedStore],
       ),
       Category(
         id: '6',
         name: '乳制品',
         storeTypeAssociation: StoreTypeAssociation.unmanned,
+        miniAppAssociation: [MiniAppType.unmannedStore],
       ),
     ];
   }

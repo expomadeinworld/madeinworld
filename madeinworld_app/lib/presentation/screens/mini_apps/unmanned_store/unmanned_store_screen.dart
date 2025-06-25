@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -8,6 +9,7 @@ import '../../../../data/models/category.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/product.dart';
 import '../../../../core/enums/store_type.dart';
+import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
 import '../../../providers/cart_provider.dart';
@@ -272,11 +274,50 @@ class _ProductsTab extends StatefulWidget {
   State<_ProductsTab> createState() => __ProductsTabState();
 }
 
-class __ProductsTabState extends State<_ProductsTab> {
+class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver {
   String? _selectedCategoryId;
+  String? _selectedSubcategoryId;
   final ApiService _apiService = ApiService();
   late Future<List<Category>> _categoriesFuture;
   late Future<List<Product>> _productsFuture;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add lifecycle observer for automatic foreground refresh
+    WidgetsBinding.instance.addObserver(this);
+    // Start periodic refresh timer (every 30 seconds)
+    _startPeriodicRefresh();
+  }
+
+  @override
+  void dispose() {
+    // Remove lifecycle observer and cancel timer
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Automatically refresh data when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      _fetchData();
+      _startPeriodicRefresh(); // Restart timer when app resumes
+    } else if (state == AppLifecycleState.paused) {
+      _refreshTimer?.cancel(); // Stop timer when app is paused
+    }
+  }
+
+  // Start periodic refresh timer
+  void _startPeriodicRefresh() {
+    _refreshTimer?.cancel(); // Cancel existing timer
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _fetchData();
+    });
+  }
 
   @override
   void didChangeDependencies() {
@@ -291,13 +332,29 @@ class __ProductsTabState extends State<_ProductsTab> {
     final storeId = locationProvider.nearestStore?.id;
 
     setState(() {
-      _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.unmanned);
+      _categoriesFuture = _apiService.fetchCategoriesWithFilters(
+        storeType: StoreType.unmanned,
+        miniAppType: MiniAppType.unmannedStore,
+        includeSubcategories: true,
+      );
       // Pass the storeId to the products fetch call
       _productsFuture = _apiService.fetchProducts(
         storeType: StoreType.unmanned,
         storeId: storeId,
       );
     });
+  }
+
+  // Method for pull-to-refresh
+  Future<void> _refreshData() async {
+    _fetchData();
+    // Wait for both futures to complete
+    try {
+      await Future.wait([_categoriesFuture, _productsFuture]);
+    } catch (e) {
+      // Handle errors silently for refresh
+      // Error logging could be added here in production
+    }
   }
 
   @override
@@ -356,21 +413,33 @@ class __ProductsTabState extends State<_ProductsTab> {
         } else if (snapshot.hasData) {
           final categories = snapshot.data![0] as List<Category>;
           final allProducts = snapshot.data![1] as List<Product>;
-          final filteredProducts = _selectedCategoryId == null
-              ? allProducts
-              : allProducts.where((product) =>
-                  product.categoryIds.contains(_selectedCategoryId)).toList();
 
-          return Column(
-            children: [
-              // Categories
-              Container(
-                height: 60,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: categories.length + 1, // +1 for "All" category
+          // Filter products by category and subcategory
+          List<Product> filteredProducts = allProducts;
+
+          if (_selectedCategoryId != null) {
+            filteredProducts = filteredProducts.where((product) =>
+                product.categoryIds.contains(_selectedCategoryId)).toList();
+          }
+
+          if (_selectedSubcategoryId != null) {
+            filteredProducts = filteredProducts.where((product) =>
+                product.subcategoryIds.contains(_selectedSubcategoryId)).toList();
+          }
+
+          return RefreshIndicator(
+            onRefresh: _refreshData,
+            color: AppColors.themeRed,
+            child: Column(
+              children: [
+                // Categories
+                Container(
+                  height: 60,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: categories.length + 1, // +1 for "All" category
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return CategoryChip(
@@ -378,11 +447,13 @@ class __ProductsTabState extends State<_ProductsTab> {
                           id: '',
                           name: '全部',
                           storeTypeAssociation: StoreTypeAssociation.all,
+                          miniAppAssociation: [],
                         ),
                         isSelected: _selectedCategoryId == null,
                         onTap: () {
                           setState(() {
                             _selectedCategoryId = null;
+                            _selectedSubcategoryId = null;
                           });
                         },
                       );
@@ -395,12 +466,67 @@ class __ProductsTabState extends State<_ProductsTab> {
                       onTap: () {
                         setState(() {
                           _selectedCategoryId = category.id;
+                          _selectedSubcategoryId = null; // Reset subcategory when category changes
                         });
                       },
                     );
                   },
                 ),
               ),
+
+              // Subcategories (show when a category is selected)
+              if (_selectedCategoryId != null)
+                Builder(
+                  builder: (context) {
+                    final selectedCategory = categories.firstWhere(
+                      (cat) => cat.id == _selectedCategoryId,
+                      orElse: () => categories.first,
+                    );
+
+                    if (selectedCategory.subcategories.isNotEmpty) {
+                      return Container(
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: selectedCategory.subcategories.length + 1, // +1 for "All" subcategory
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: FilterChip(
+                                  label: const Text('全部'),
+                                  selected: _selectedSubcategoryId == null,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _selectedSubcategoryId = null;
+                                    });
+                                  },
+                                ),
+                              );
+                            }
+
+                            final subcategory = selectedCategory.subcategories[index - 1];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(subcategory.name),
+                                selected: _selectedSubcategoryId == subcategory.id,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    _selectedSubcategoryId = selected ? subcategory.id : null;
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
 
               // Products Grid
               Expanded(
@@ -411,6 +537,7 @@ class __ProductsTabState extends State<_ProductsTab> {
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                     itemCount: filteredProducts.length,
+                    physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works
                     itemBuilder: (context, index) {
                       return ProductCard(
                         product: filteredProducts[index],
@@ -423,7 +550,8 @@ class __ProductsTabState extends State<_ProductsTab> {
                 ),
               ),
             ],
-          );
+          ),
+        );
         } else {
           return const Center(
             child: Text('暂无数据'),

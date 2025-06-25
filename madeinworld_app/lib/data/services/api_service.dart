@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart' hide Category; // FIX: Hides the confli
 import 'package:http/http.dart' as http;
 import '../models/product.dart';
 import '../models/category.dart';
+import '../models/subcategory.dart';
 import '../models/store.dart';
 import '../../core/enums/store_type.dart';
+import '../../core/enums/mini_app_type.dart';
 import '../../core/config/api_config.dart'; // IMPORT THE CORRECT CONFIG
 
 class ApiService {
@@ -231,6 +233,91 @@ class ApiService {
       return response.statusCode == 200;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Fetches subcategories for a specific category
+  ///
+  /// [categoryId] - The ID of the parent category
+  Future<List<Subcategory>> fetchSubcategories(String categoryId) async {
+    try {
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/categories/$categoryId/subcategories');
+
+      debugPrint('Fetching subcategories from: $uri');
+
+      final response = await _client.get(uri).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = json.decode(response.body);
+        return jsonList.map((json) => Subcategory.fromJson(json)).toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch subcategories: ${response.body}',
+          response.statusCode,
+        );
+      }
+    } on SocketException {
+      throw const ApiException('No internet connection', 0);
+    } on HttpException {
+      throw const ApiException('HTTP error occurred', 0);
+    } on FormatException {
+      throw const ApiException('Invalid response format', 0);
+    } catch (e) {
+      throw ApiException('Unexpected error: $e', 0);
+    }
+  }
+
+  /// Fetches categories with optional filtering by mini-app type
+  ///
+  /// [storeType] - Filter categories by store type (optional)
+  /// [miniAppType] - Filter categories by mini-app type (optional)
+  /// [includeSubcategories] - Whether to include subcategories in the response (optional)
+  Future<List<Category>> fetchCategoriesWithFilters({
+    StoreType? storeType,
+    MiniAppType? miniAppType,
+    bool includeSubcategories = false,
+  }) async {
+    try {
+      // Build query parameters
+      final Map<String, String> queryParams = {};
+
+      if (storeType != null) {
+        queryParams['store_type'] = storeType.toString().split('.').last;
+      }
+
+      if (miniAppType != null) {
+        queryParams['mini_app_type'] = miniAppType.apiValue;
+      }
+
+      if (includeSubcategories) {
+        queryParams['include_subcategories'] = 'true';
+      }
+
+      // Build URI
+      final uri = Uri.parse('${ApiConfig.apiBaseUrl}/categories')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      debugPrint('Fetching categories from: $uri');
+
+      final response = await _client.get(uri).timeout(_timeout);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = json.decode(response.body);
+        return jsonList.map((json) => Category.fromJson(json)).toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch categories: ${response.body}',
+          response.statusCode,
+        );
+      }
+    } on SocketException {
+      throw const ApiException('No internet connection', 0);
+    } on HttpException {
+      throw const ApiException('HTTP error occurred', 0);
+    } on FormatException {
+      throw const ApiException('Invalid response format', 0);
+    } catch (e) {
+      throw ApiException('Unexpected error: $e', 0);
     }
   }
 

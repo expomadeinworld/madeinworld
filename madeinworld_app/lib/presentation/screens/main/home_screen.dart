@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,8 @@ import '../../widgets/common/product_card.dart';
 import '../../providers/location_provider.dart';
 import '../mini_apps/retail_store/retail_store_screen.dart';
 import '../mini_apps/unmanned_store/unmanned_store_screen.dart';
+import '../mini_apps/exhibition_sales/exhibition_sales_screen.dart';
+import '../mini_apps/group_buying/group_buying_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,18 +22,60 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late Future<List<Product>> _featuredProductsFuture;
   final ApiService _apiService = ApiService();
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
+    // Add lifecycle observer for automatic foreground refresh
+    WidgetsBinding.instance.addObserver(this);
+
     // Location services are now automatically initialized by LocationProvider constructor
     // No manual initialization needed
 
     // Initialize the featured products future
-    _featuredProductsFuture = _apiService.fetchProducts(featured: true);
+    _refreshFeaturedProducts();
+
+    // Start periodic refresh timer (every 30 seconds)
+    _startPeriodicRefresh();
+  }
+
+  @override
+  void dispose() {
+    // Remove lifecycle observer and cancel timer
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Automatically refresh data when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      _refreshFeaturedProducts();
+      _startPeriodicRefresh(); // Restart timer when app resumes
+    } else if (state == AppLifecycleState.paused) {
+      _refreshTimer?.cancel(); // Stop timer when app is paused
+    }
+  }
+
+  // Start periodic refresh timer
+  void _startPeriodicRefresh() {
+    _refreshTimer?.cancel(); // Cancel existing timer
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _refreshFeaturedProducts();
+    });
+  }
+
+  // Method to refresh featured products
+  Future<void> _refreshFeaturedProducts() async {
+    setState(() {
+      _featuredProductsFuture = _apiService.fetchProducts(featured: true);
+    });
   }
 
   @override
@@ -42,13 +87,17 @@ class _HomeScreenState extends State<HomeScreen> {
           // Decorative backdrop
           const DecorativeBackdrop(),
 
-          // Main content
+          // Main content with pull-to-refresh
           SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context, 24)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            child: RefreshIndicator(
+              onRefresh: _refreshFeaturedProducts,
+              color: AppColors.themeRed,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context, 24)),
+                physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even with short content
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   // Header Section
                   _buildHeader(context),
 
@@ -83,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+        ),
         ],
       ),
     );
@@ -255,39 +305,25 @@ class _HomeScreenState extends State<HomeScreen> {
         'onTap': () => _navigateToMiniApp(context, const RetailStoreScreen()),
       },
       {
-        'title': '无人门店',
+        'title': '无人商店',
         'icon': Icons.store,
         'color': AppColors.blueModule,
         'bgColor': AppColors.blueModuleBg,
         'onTap': () => _navigateToMiniApp(context, const UnmannedStoreScreen()),
       },
       {
-        'title': '无人仓店',
-        'icon': Icons.warehouse,
-        'color': AppColors.greenModule,
-        'bgColor': AppColors.greenModuleBg,
-        'onTap': () {},
-      },
-      {
-        'title': '展销商店',
+        'title': '展销展消',
         'icon': Icons.storefront,
         'color': AppColors.purpleModule,
         'bgColor': AppColors.purpleModuleBg,
-        'onTap': () {},
-      },
-      {
-        'title': '展销商城',
-        'icon': Icons.shopping_cart,
-        'color': AppColors.yellowModule,
-        'bgColor': AppColors.yellowModuleBg,
-        'onTap': () {},
+        'onTap': () => _navigateToMiniApp(context, const ExhibitionSalesScreen()),
       },
       {
         'title': '团购团批',
         'icon': Icons.group,
         'color': AppColors.indigoModule,
         'bgColor': AppColors.indigoModuleBg,
-        'onTap': () {},
+        'onTap': () => _navigateToMiniApp(context, const GroupBuyingScreen()),
       },
     ];
 
@@ -297,10 +333,10 @@ class _HomeScreenState extends State<HomeScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: ResponsiveUtils.getResponsiveSpacing(context, 12),
-          mainAxisSpacing: ResponsiveUtils.getResponsiveSpacing(context, 12),
-          childAspectRatio: 1.0,
+          crossAxisCount: 2,
+          crossAxisSpacing: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          mainAxisSpacing: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          childAspectRatio: 2.5,
         ),
         itemCount: modules.length,
         itemBuilder: (context, index) {
@@ -319,29 +355,33 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: module['bgColor'] as Color,
-                      borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: module['bgColor'] as Color,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        module['icon'] as IconData,
+                        color: module['color'] as Color,
+                        size: 24,
+                      ),
                     ),
-                    child: Icon(
-                      module['icon'] as IconData,
-                      color: module['color'] as Color,
-                      size: 24,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        module['title'] as String,
+                        style: AppTextStyles.moduleLabel,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    module['title'] as String,
-                    style: AppTextStyles.moduleLabel,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );

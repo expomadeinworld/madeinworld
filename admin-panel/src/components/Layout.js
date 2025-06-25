@@ -18,6 +18,7 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   Inventory as ProductsIcon,
+  Category as CategoriesIcon,
   Store as StoreIcon,
   People as UsersIcon,
   Assessment as AnalyticsIcon,
@@ -36,6 +37,11 @@ const navigationItems = [
     text: 'Products',
     icon: <ProductsIcon />,
     path: '/products',
+  },
+  {
+    text: 'Categories',
+    icon: <CategoriesIcon />,
+    path: '/categories',
   },
   {
     text: 'Stores',

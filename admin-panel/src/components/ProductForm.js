@@ -29,10 +29,12 @@ import {
 } from '@mui/icons-material';
 import { productService } from '../services/api';
 import CategorySelector from './CategorySelector';
+import { useToast } from '../contexts/ToastContext';
 
 const steps = ['Create Product', 'Upload Image'];
 
 const ProductForm = ({ open, onClose, onProductCreated }) => {
+  const { showSuccess, showError } = useToast();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -112,12 +114,14 @@ const ProductForm = ({ open, onClose, onProductCreated }) => {
       const response = await productService.createProduct(productData);
       
       setProductId(response.product_id);
-      setSuccess('Product created successfully! Now upload an image.');
+      showSuccess('Product created successfully! Now upload an image.');
       setActiveStep(1);
       
     } catch (err) {
       console.error('Error creating product:', err);
-      setError(err.message || 'Failed to create product');
+      const errorMessage = err.message || 'Failed to create product';
+      setError(errorMessage);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -133,9 +137,9 @@ const ProductForm = ({ open, onClose, onProductCreated }) => {
       }
 
       await productService.uploadProductImage(productId, selectedImage);
-      
-      setSuccess('Product and image uploaded successfully!');
-      
+
+      showSuccess('Product and image uploaded successfully!');
+
       // Call the callback to refresh the product list
       setTimeout(() => {
         onProductCreated();
@@ -199,7 +203,7 @@ const ProductForm = ({ open, onClose, onProductCreated }) => {
         </Stepper>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 2 }}>
+      <DialogContent sx={{ pt: 6, pb: 2 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -214,7 +218,7 @@ const ProductForm = ({ open, onClose, onProductCreated }) => {
 
         {/* Step 1: Create Product */}
         {activeStep === 0 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
             <TextField
               label="Product Title *"
               value={formData.title}

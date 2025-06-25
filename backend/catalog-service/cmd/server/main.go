@@ -66,6 +66,9 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
 
+	// Serve uploaded files for local development
+	router.Static("/uploads", "./uploads")
+
 	// Health check endpoint
 	router.GET("/health", handler.Health)
 
@@ -77,10 +80,18 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 		v1.GET("/products/:id", handler.GetProduct)
 		// --- NEW ROUTES ---
 		v1.POST("/products", handler.CreateProduct)
+		v1.PUT("/products/:id", handler.UpdateProduct)
+		v1.DELETE("/products/:id", handler.DeleteProduct)
 		v1.POST("/products/:id/image", handler.UploadProductImage)
 
 		// Category endpoints
 		v1.GET("/categories", handler.GetCategories)
+		v1.GET("/categories/:id/subcategories", handler.GetSubcategories)
+		v1.POST("/categories/:id/subcategories", handler.CreateSubcategory)
+
+		// Subcategory endpoints
+		v1.PUT("/subcategories/:id", handler.UpdateSubcategory)
+		v1.DELETE("/subcategories/:id", handler.DeleteSubcategory)
 
 		// Store endpoints
 		v1.GET("/stores", handler.GetStores)

@@ -1,6 +1,9 @@
 package models
 
 import (
+	"database/sql/driver"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -8,9 +11,64 @@ import (
 type StoreType string
 
 const (
-	StoreTypeRetail   StoreType = "retail"
-	StoreTypeUnmanned StoreType = "unmanned"
+	StoreTypeRetail    StoreType = "retail"
+	StoreTypeUnmanned  StoreType = "unmanned"
+	StoreTypeWarehouse StoreType = "warehouse"
 )
+
+// MiniAppType represents the type of mini-app
+type MiniAppType string
+
+const (
+	MiniAppTypeRetailStore     MiniAppType = "RetailStore"
+	MiniAppTypeUnmannedStore   MiniAppType = "UnmannedStore"
+	MiniAppTypeExhibitionSales MiniAppType = "ExhibitionSales"
+	MiniAppTypeGroupBuying     MiniAppType = "GroupBuying"
+)
+
+// MiniAppTypeArray represents an array of MiniAppType for PostgreSQL array support
+type MiniAppTypeArray []MiniAppType
+
+// Value implements the driver.Valuer interface for database storage
+func (a MiniAppTypeArray) Value() (driver.Value, error) {
+	if len(a) == 0 {
+		return "{}", nil
+	}
+
+	strs := make([]string, len(a))
+	for i, v := range a {
+		strs[i] = string(v)
+	}
+	return "{" + strings.Join(strs, ",") + "}", nil
+}
+
+// Scan implements the sql.Scanner interface for database retrieval
+func (a *MiniAppTypeArray) Scan(value interface{}) error {
+	if value == nil {
+		*a = MiniAppTypeArray{}
+		return nil
+	}
+
+	switch v := value.(type) {
+	case string:
+		// Remove braces and split by comma
+		v = strings.Trim(v, "{}")
+		if v == "" {
+			*a = MiniAppTypeArray{}
+			return nil
+		}
+
+		parts := strings.Split(v, ",")
+		result := make(MiniAppTypeArray, len(parts))
+		for i, part := range parts {
+			result[i] = MiniAppType(strings.TrimSpace(part))
+		}
+		*a = result
+		return nil
+	default:
+		return fmt.Errorf("cannot scan %T into MiniAppTypeArray", value)
+	}
+}
 
 // Product represents a product in the catalog
 type Product struct {
@@ -27,6 +85,7 @@ type Product struct {
 	IsFeatured         bool      `json:"is_featured" db:"is_featured"`
 	ImageUrls          []string  `json:"image_urls"`
 	CategoryIds        []string  `json:"category_ids"`
+	SubcategoryIds     []string  `json:"subcategory_ids"`
 	StockQuantity      *int      `json:"stock_quantity"`
 	CreatedAt          time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at" db:"updated_at"`
@@ -55,11 +114,25 @@ func (p *Product) HasStock() bool {
 
 // Category represents a product category
 type Category struct {
-	ID                     int    `json:"id" db:"category_id"`
-	Name                   string `json:"name" db:"name"`
-	StoreTypeAssociation   string `json:"store_type_association" db:"store_type_association"`
-	CreatedAt              time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt              time.Time `json:"updated_at" db:"updated_at"`
+	ID                   int              `json:"id" db:"category_id"`
+	Name                 string           `json:"name" db:"name"`
+	StoreTypeAssociation string           `json:"store_type_association" db:"store_type_association"`
+	MiniAppAssociation   MiniAppTypeArray `json:"mini_app_association" db:"mini_app_association"`
+	Subcategories        []Subcategory    `json:"subcategories,omitempty"`
+	CreatedAt            time.Time        `json:"created_at" db:"created_at"`
+	UpdatedAt            time.Time        `json:"updated_at" db:"updated_at"`
+}
+
+// Subcategory represents a product subcategory
+type Subcategory struct {
+	ID               int       `json:"id" db:"subcategory_id"`
+	ParentCategoryID int       `json:"parent_category_id" db:"parent_category_id"`
+	Name             string    `json:"name" db:"name"`
+	ImageURL         *string   `json:"image_url" db:"image_url"`
+	DisplayOrder     int       `json:"display_order" db:"display_order"`
+	IsActive         bool      `json:"is_active" db:"is_active"`
+	CreatedAt        time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // Store represents a physical store location

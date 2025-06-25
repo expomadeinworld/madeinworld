@@ -8,6 +8,7 @@ import '../../../../data/models/category.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/product.dart';
 import '../../../../core/enums/store_type.dart';
+import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
 import '../../../providers/cart_provider.dart';
@@ -205,7 +206,11 @@ class _ProductsTabState extends State<_ProductsTab> {
   @override
   void initState() {
     super.initState();
-    _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.retail);
+    _categoriesFuture = _apiService.fetchCategoriesWithFilters(
+      storeType: StoreType.retail,
+      miniAppType: MiniAppType.retailStore,
+      includeSubcategories: true,
+    );
     _productsFuture = _apiService.fetchProducts(storeType: StoreType.retail);
   }
 
@@ -251,7 +256,11 @@ class _ProductsTabState extends State<_ProductsTab> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _categoriesFuture = _apiService.fetchCategories(storeType: StoreType.retail);
+                      _categoriesFuture = _apiService.fetchCategoriesWithFilters(
+                        storeType: StoreType.retail,
+                        miniAppType: MiniAppType.retailStore,
+                        includeSubcategories: true,
+                      );
                       _productsFuture = _apiService.fetchProducts(storeType: StoreType.retail);
                     });
                   },
@@ -292,6 +301,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                           id: '',
                           name: '全部',
                           storeTypeAssociation: StoreTypeAssociation.all,
+                          miniAppAssociation: [],
                         ),
                         isSelected: _selectedCategoryId == null,
                         onTap: () {

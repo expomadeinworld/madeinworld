@@ -31,10 +31,12 @@ import {
 } from '@mui/icons-material';
 import { productService } from '../services/api';
 import CategorySelector from './CategorySelector';
+import { useToast } from '../contexts/ToastContext';
 
 const steps = ['Edit Product Details', 'Update Image (Optional)'];
 
 const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
+  const { showSuccess, showError } = useToast();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -129,13 +131,13 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
         is_featured: formData.store_type === 'Unmanned' ? formData.is_featured : false,
       };
 
-      // TODO: Implement updateProduct API call
-      // await productService.updateProduct(product.id, productData);
-      console.log('Product data to update:', productData);
-      
-      setSuccess('Product details updated successfully!');
-      
-      // For now, simulate success and move to step 2
+      // Call the real API to update the product
+      await productService.updateProduct(product.id, productData);
+      console.log('Product updated successfully:', productData);
+
+      showSuccess('Product details updated successfully!');
+
+      // Move to step 2 after success
       setTimeout(() => {
         setActiveStep(1);
       }, 1000);
@@ -155,7 +157,7 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
 
       if (!selectedImage) {
         // If no new image selected, just close the modal
-        setSuccess('Product updated successfully!');
+        showSuccess('Product updated successfully!');
         setTimeout(() => {
           onProductUpdated();
           handleClose();
@@ -164,8 +166,8 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
       }
 
       await productService.uploadProductImage(product.id, selectedImage);
-      
-      setSuccess('Product and image updated successfully!');
+
+      showSuccess('Product and image updated successfully!');
       
       // Call the callback to refresh the product list
       setTimeout(() => {
@@ -194,7 +196,7 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
   };
 
   const handleSkipImageUpdate = () => {
-    setSuccess('Product details updated successfully!');
+    showSuccess('Product details updated successfully!');
     setTimeout(() => {
       onProductUpdated();
       handleClose();
@@ -232,7 +234,7 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
         </Stepper>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 2 }}>
+      <DialogContent sx={{ pt: 6, pb: 2 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -247,7 +249,7 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
 
         {/* Step 1: Edit Product Details */}
         {activeStep === 0 && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
             <TextField
               label="Product Title *"
               value={formData.title}

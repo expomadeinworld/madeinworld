@@ -77,7 +77,7 @@ const ProductDetailsModal = ({ open, onClose, product }) => {
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 2 }}>
+      <DialogContent sx={{ pt: 6, pb: 2 }}>
         <Grid container spacing={3}>
           {/* Product Image */}
           <Grid item xs={12} md={4}>

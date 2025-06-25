@@ -78,11 +78,24 @@ export const productService = {
     return response.data;
   },
 
+  // Update existing product
+  updateProduct: async (productId, productData) => {
+    const response = await api.put(`/products/${productId}`, productData);
+    return response.data;
+  },
+
+  // Delete product (soft delete by default)
+  deleteProduct: async (productId, hardDelete = false) => {
+    const params = hardDelete ? { hard: 'true' } : {};
+    const response = await api.delete(`/products/${productId}`, { params });
+    return response.data;
+  },
+
   // Upload product image
   uploadProductImage: async (productId, imageFile) => {
     const formData = new FormData();
     formData.append('productImage', imageFile);
-    
+
     const response = await api.post(`/products/${productId}/image`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

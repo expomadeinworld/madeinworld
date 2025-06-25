@@ -139,6 +139,151 @@ func (db *Database) AddImageURLToProduct(ctx context.Context, productID int, ima
 	return nil
 }
 
+// ReplaceProductImage replaces the primary image for a product (deletes existing, adds new)
+func (db *Database) ReplaceProductImage(ctx context.Context, productID int, imageURL string) error {
+	// Start a transaction to ensure atomicity
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Delete existing images for this product
+	_, err = tx.Exec(ctx, "DELETE FROM product_images WHERE product_id = $1", productID)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing images: %w", err)
+	}
+
+	// Insert the new image as the primary image (display_order = 1)
+	_, err = tx.Exec(ctx,
+		"INSERT INTO product_images (product_id, image_url, display_order) VALUES ($1, $2, 1)",
+		productID, imageURL)
+	if err != nil {
+		return fmt.Errorf("failed to insert new image: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateProduct updates an existing product in the database
+func (db *Database) UpdateProduct(ctx context.Context, productID int, product models.Product) error {
+	query := `
+        UPDATE products
+        SET
+            sku = $2,
+            title = $3,
+            description_short = $4,
+            description_long = $5,
+            manufacturer_id = $6,
+            store_type = $7,
+            main_price = $8,
+            strikethrough_price = $9,
+            is_active = $10,
+            is_featured = $11,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE product_id = $1
+    `
+	result, err := db.Pool.Exec(ctx, query,
+		productID,
+		product.SKU,
+		product.Title,
+		product.DescriptionShort,
+		product.DescriptionLong,
+		product.ManufacturerID,
+		product.StoreType,
+		product.MainPrice,
+		product.StrikethroughPrice,
+		product.IsActive,
+		product.IsFeatured,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update product: %w", err)
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("product with ID %d not found", productID)
+	}
+
+	return nil
+}
+
+// DeleteProduct soft deletes a product by setting is_active to false
+func (db *Database) DeleteProduct(ctx context.Context, productID int) error {
+	query := `
+        UPDATE products
+        SET
+            is_active = false,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE product_id = $1 AND is_active = true
+    `
+	result, err := db.Pool.Exec(ctx, query, productID)
+
+	if err != nil {
+		return fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("product with ID %d not found or already deleted", productID)
+	}
+
+	return nil
+}
+
+// HardDeleteProduct permanently removes a product from the database
+// Use with caution - this is irreversible
+func (db *Database) HardDeleteProduct(ctx context.Context, productID int) error {
+	// Start a transaction to ensure data consistency
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Delete product images first (foreign key constraint)
+	_, err = tx.Exec(ctx, "DELETE FROM product_images WHERE product_id = $1", productID)
+	if err != nil {
+		return fmt.Errorf("failed to delete product images: %w", err)
+	}
+
+	// Delete product category mappings
+	_, err = tx.Exec(ctx, "DELETE FROM product_category_mapping WHERE product_id = $1", productID)
+	if err != nil {
+		return fmt.Errorf("failed to delete product category mappings: %w", err)
+	}
+
+	// Delete inventory records
+	_, err = tx.Exec(ctx, "DELETE FROM inventory WHERE product_id = $1", productID)
+	if err != nil {
+		return fmt.Errorf("failed to delete inventory records: %w", err)
+	}
+
+	// Finally delete the product
+	result, err := tx.Exec(ctx, "DELETE FROM products WHERE product_id = $1", productID)
+	if err != nil {
+		return fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("product with ID %d not found", productID)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // =================================================================================
 // HELPER FUNCTIONS FOR CONFIG
 // =================================================================================

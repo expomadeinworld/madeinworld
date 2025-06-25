@@ -8,23 +8,28 @@ import Layout from './components/Layout';
 // Import page components
 import DashboardPage from './pages/DashboardPage';
 import ProductListPage from './pages/ProductListPage';
+import CategoryListPage from './pages/CategoryListPage';
+import { ToastProvider } from './contexts/ToastContext';
 
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/products" element={<ProductListPage />} />
-            {/* Future routes */}
-            <Route path="/stores" element={<div>Stores Page (Coming Soon)</div>} />
-            <Route path="/users" element={<div>Users Page (Coming Soon)</div>} />
-            <Route path="/analytics" element={<div>Analytics Page (Coming Soon)</div>} />
-          </Routes>
-        </Layout>
-      </Router>
+      <ToastProvider>
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/products" element={<ProductListPage />} />
+              <Route path="/categories" element={<CategoryListPage />} />
+              {/* Future routes */}
+              <Route path="/stores" element={<div>Stores Page (Coming Soon)</div>} />
+              <Route path="/users" element={<div>Users Page (Coming Soon)</div>} />
+              <Route path="/analytics" element={<div>Analytics Page (Coming Soon)</div>} />
+            </Routes>
+          </Layout>
+        </Router>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

@@ -14,6 +14,7 @@ class Product {
   final bool isFeatured;
   final List<String> imageUrls;
   final List<String> categoryIds;
+  final List<String> subcategoryIds;
   final int? stockQuantity; // Only for unmanned stores
 
   Product({
@@ -30,6 +31,7 @@ class Product {
     this.isFeatured = false,
     required this.imageUrls,
     required this.categoryIds,
+    this.subcategoryIds = const [],
     this.stockQuantity,
   });
 
@@ -61,6 +63,7 @@ class Product {
       isFeatured: json['is_featured'] ?? false,
       imageUrls: List<String>.from(json['image_urls'] ?? []),
       categoryIds: List<String>.from(json['category_ids'] ?? []),
+      subcategoryIds: List<String>.from(json['subcategory_ids'] ?? []),
       stockQuantity: json['stock_quantity'],
     );
   }
@@ -80,6 +83,7 @@ class Product {
       'is_featured': isFeatured,
       'image_urls': imageUrls,
       'category_ids': categoryIds,
+      'subcategory_ids': subcategoryIds,
       'stock_quantity': stockQuantity,
     };
   }
