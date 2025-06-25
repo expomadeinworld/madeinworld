@@ -7,13 +7,15 @@ library;
 class ApiConfig {
   // Development/Testing Configuration
   static const String _devBaseUrl = 'http://localhost:8080';
-  
-  // Production Configuration
+
+  // Production Configuration (commented out for local development)
   // Update this with your actual LoadBalancer URL after deployment
   static const String _prodBaseUrl = 'https://api.expomadeinworld.com';
-  
+
   // Current environment - change this for different builds
-  static const bool _isDevelopment = false;
+  // Set to true to use local development server (localhost:8080)
+  // Set to false to use production server (api.expomadeinworld.com)
+  static const bool _isDevelopment = true;
   
   /// Get the current base URL based on environment
   static String get baseUrl => _isDevelopment ? _devBaseUrl : _prodBaseUrl;

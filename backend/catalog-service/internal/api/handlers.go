@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
-	"strings" // IMPORT THIS PACKAGE
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/db"
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/models"
 	"github.com/gin-gonic/gin"
@@ -24,6 +27,108 @@ func NewHandler(database *db.Database) *Handler {
 	return &Handler{db: database}
 }
 
+// =================================================================================
+// NEW HANDLERS FOR CREATING AND UPDATING DATA
+// =================================================================================
+
+// CreateProduct handles POST /products
+func (h *Handler) CreateProduct(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	var newProduct models.Product
+	if err := c.ShouldBindJSON(&newProduct); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	// Call the database function to insert the product
+	productID, err := h.db.CreateProduct(ctx, newProduct)
+	if err != nil {
+		log.Printf("Failed to create product in DB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"product_id": productID})
+}
+
+// UploadProductImage handles POST /products/:id/image
+func (h *Handler) UploadProductImage(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second) // Longer timeout for uploads
+	defer cancel()
+
+	// --- 1. Get and Validate Product ID from URL ---
+	idStr := c.Param("id")
+	productID, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID format"})
+		return
+	}
+
+	// --- 2. Get File from Form ---
+	fileHeader, err := c.FormFile("productImage") // "productImage" is the name of the form field.
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'productImage' form field"})
+		return
+	}
+
+	// Open the file
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open uploaded file"})
+		return
+	}
+	defer file.Close()
+
+	// --- 3. Set up AWS S3 Client ---
+	// This will use your credentials from `aws sso login --profile madeinworld-frankfurt`
+	awsProfile := "madeinworld-frankfurt"
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(awsProfile))
+	if err != nil {
+		log.Printf("Failed to load AWS config with profile %s: %v", awsProfile, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to configure storage service"})
+		return
+	}
+	s3Client := s3.NewFromConfig(cfg)
+
+	// --- 4. Upload to S3 ---
+	bucketName := "madeinworld-product-images-admin" // Your specified bucket name
+	// Create a unique object key (filename) for S3
+	objectKey := fmt.Sprintf("products/%d/%d%s", productID, time.Now().UnixNano(), filepath.Ext(fileHeader.Filename))
+
+	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucketName,
+		Key:    &objectKey,
+		Body:   file,
+		// ACL: "public-read" // Note: S3 Bucket policy is preferred over ACLs
+	})
+	if err != nil {
+		log.Printf("Failed to upload file to S3: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file"})
+		return
+	}
+
+	// --- 5. Construct URL and Save to Database ---
+	// The URL format depends on the region. Assuming us-east-1 for this example if not specified.
+	// A better way is to get the region from the AWS config.
+	imageURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucketName, cfg.Region, objectKey)
+
+	if err := h.db.AddImageURLToProduct(ctx, productID, imageURL); err != nil {
+		log.Printf("Failed to save image URL to DB: %v", err)
+		// Consider adding cleanup logic here to delete the object from S3 if the DB write fails.
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "File uploaded but failed to update product record"})
+		return
+	}
+
+	// --- 6. Return Success Response ---
+	c.JSON(http.StatusCreated, gin.H{"image_url": imageURL})
+}
+
+// =================================================================================
+// EXISTING HANDLERS (Unchanged)
+// =================================================================================
+
 // GetProducts handles GET /products
 func (h *Handler) GetProducts(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -36,13 +141,13 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	// Build the query
 	query := `
-		SELECT 
-			p.product_id, p.sku, p.title, p.description_short, p.description_long,
-			p.manufacturer_id, p.store_type, p.main_price, p.strikethrough_price,
-			p.is_active, p.is_featured, p.created_at, p.updated_at
-		FROM products p
-		WHERE p.is_active = true
-	`
+        SELECT
+            p.product_id, p.sku, p.title, p.description_short, p.description_long,
+            p.manufacturer_id, p.store_type, p.main_price, p.strikethrough_price,
+            p.is_active, p.is_featured, p.created_at, p.updated_at
+        FROM products p
+        WHERE p.is_active = true
+    `
 
 	args := []interface{}{}
 	argIndex := 1
@@ -154,13 +259,13 @@ func (h *Handler) GetProduct(c *gin.Context) {
 	}
 
 	query := `
-		SELECT 
-			p.product_id, p.sku, p.title, p.description_short, p.description_long,
-			p.manufacturer_id, p.store_type, p.main_price, p.strikethrough_price,
-			p.is_active, p.is_featured, p.created_at, p.updated_at
-		FROM products p
-		WHERE p.product_id = $1 AND p.is_active = true
-	`
+        SELECT
+            p.product_id, p.sku, p.title, p.description_short, p.description_long,
+            p.manufacturer_id, p.store_type, p.main_price, p.strikethrough_price,
+            p.is_active, p.is_featured, p.created_at, p.updated_at
+        FROM products p
+        WHERE p.product_id = $1 AND p.is_active = true
+    `
 
 	var product models.Product
 	err = h.db.Pool.QueryRow(ctx, query, productID).Scan(
@@ -225,9 +330,9 @@ func (h *Handler) GetCategories(c *gin.Context) {
 	storeType := c.Query("store_type")
 
 	query := `
-		SELECT category_id, name, store_type_association, created_at, updated_at
-		FROM product_categories
-	`
+        SELECT category_id, name, store_type_association, created_at, updated_at
+        FROM product_categories
+    `
 
 	args := []interface{}{}
 	if storeType != "" {
@@ -277,10 +382,10 @@ func (h *Handler) GetStores(c *gin.Context) {
 	storeType := c.Query("type")
 
 	query := `
-		SELECT store_id, name, city, address, latitude, longitude, type, is_active, created_at, updated_at
-		FROM stores
-		WHERE is_active = true
-	`
+        SELECT store_id, name, city, address, latitude, longitude, type, is_active, created_at, updated_at
+        FROM stores
+        WHERE is_active = true
+    `
 
 	args := []interface{}{}
 	if storeType != "" {
@@ -351,11 +456,11 @@ func (h *Handler) Health(c *gin.Context) {
 
 func (h *Handler) getProductImages(ctx context.Context, productID int) ([]string, error) {
 	query := `
-		SELECT image_url 
-		FROM product_images 
-		WHERE product_id = $1 
-		ORDER BY display_order
-	`
+        SELECT image_url
+        FROM product_images
+        WHERE product_id = $1
+        ORDER BY display_order
+    `
 
 	rows, err := h.db.Pool.Query(ctx, query, productID)
 	if err != nil {
@@ -377,11 +482,11 @@ func (h *Handler) getProductImages(ctx context.Context, productID int) ([]string
 
 func (h *Handler) getProductCategories(ctx context.Context, productID int) ([]string, error) {
 	query := `
-		SELECT CAST(pcm.category_id AS TEXT)
-		FROM product_category_mapping pcm
-		WHERE pcm.product_id = $1
-		ORDER BY pcm.category_id
-	`
+        SELECT CAST(pcm.category_id AS TEXT)
+        FROM product_category_mapping pcm
+        WHERE pcm.product_id = $1
+        ORDER BY pcm.category_id
+    `
 
 	rows, err := h.db.Pool.Query(ctx, query, productID)
 	if err != nil {
@@ -404,10 +509,10 @@ func (h *Handler) getProductCategories(ctx context.Context, productID int) ([]st
 func (h *Handler) getProductStock(ctx context.Context, productID int, storeID string) (*int, error) {
 	// If no store ID specified, get stock from first available store
 	query := `
-		SELECT quantity 
-		FROM inventory 
-		WHERE product_id = $1
-	`
+        SELECT quantity
+        FROM inventory
+        WHERE product_id = $1
+    `
 
 	args := []interface{}{productID}
 

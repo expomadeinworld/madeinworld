@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/expomadeinworld/madeinworld/catalog-service/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,7 +30,7 @@ type Config struct {
 // NewDatabase creates a new database connection
 func NewDatabase() (*Database, error) {
 	config := getConfigFromEnv()
-	
+
 	// Build connection string
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -84,6 +85,63 @@ func (db *Database) Close() {
 func (db *Database) Health(ctx context.Context) error {
 	return db.Pool.Ping(ctx)
 }
+
+// =================================================================================
+// NEW FUNCTIONS FOR WRITING DATA
+// =================================================================================
+
+// CreateProduct inserts a new product into the database and returns its ID.
+// This function assumes your `products` table has an auto-incrementing `product_id`.
+func (db *Database) CreateProduct(ctx context.Context, product models.Product) (int, error) {
+	var productID int
+	query := `
+        INSERT INTO products 
+            (sku, title, description_short, description_long, manufacturer_id, store_type, main_price, strikethrough_price, is_active, is_featured) 
+        VALUES 
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+        RETURNING product_id
+    `
+	err := db.Pool.QueryRow(ctx, query,
+		product.SKU,
+		product.Title,
+		product.DescriptionShort,
+		product.DescriptionLong,
+		product.ManufacturerID,
+		product.StoreType,
+		product.MainPrice,
+		product.StrikethroughPrice,
+		product.IsActive,
+		product.IsFeatured,
+	).Scan(&productID)
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert product: %w", err)
+	}
+
+	return productID, nil
+}
+
+// AddImageURLToProduct links an S3 image URL to a product in the product_images table.
+func (db *Database) AddImageURLToProduct(ctx context.Context, productID int, imageURL string) error {
+	query := `
+        INSERT INTO product_images (product_id, image_url, display_order)
+        VALUES ($1, $2, (
+            SELECT COALESCE(MAX(display_order), 0) + 1 
+            FROM product_images 
+            WHERE product_id = $1
+        ))
+    `
+	_, err := db.Pool.Exec(ctx, query, productID, imageURL)
+
+	if err != nil {
+		return fmt.Errorf("failed to insert product image: %w", err)
+	}
+	return nil
+}
+
+// =================================================================================
+// HELPER FUNCTIONS FOR CONFIG
+// =================================================================================
 
 // getConfigFromEnv reads database configuration from environment variables
 func getConfigFromEnv() Config {

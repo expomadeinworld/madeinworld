@@ -6,10 +6,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/api"
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/db"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -75,6 +75,9 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 		// Product endpoints
 		v1.GET("/products", handler.GetProducts)
 		v1.GET("/products/:id", handler.GetProduct)
+		// --- NEW ROUTES ---
+		v1.POST("/products", handler.CreateProduct)
+		v1.POST("/products/:id/image", handler.UploadProductImage)
 
 		// Category endpoints
 		v1.GET("/categories", handler.GetCategories)
