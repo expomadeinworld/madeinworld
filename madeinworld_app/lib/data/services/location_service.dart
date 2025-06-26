@@ -179,7 +179,7 @@ class LocationService {
       if (position == null) return null;
 
       final unmannedStores = MockDataService.getStores()
-          .where((store) => store.type == StoreType.unmanned)
+          .where((store) => store.type == StoreType.unmannedStore || store.type == StoreType.unmannedWarehouse)
           .toList();
 
       if (unmannedStores.isEmpty) return null;
@@ -215,7 +215,7 @@ class LocationService {
       if (position == null) return [];
 
       final unmannedStores = MockDataService.getStores()
-          .where((store) => store.type == StoreType.unmanned)
+          .where((store) => store.type == StoreType.unmannedStore || store.type == StoreType.unmannedWarehouse)
           .toList();
 
       final storesWithDistance = <StoreWithDistance>[];

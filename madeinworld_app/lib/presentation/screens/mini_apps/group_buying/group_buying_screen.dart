@@ -338,15 +338,15 @@ class _ProductsTabState extends State<_ProductsTab> {
                       if (index == 0) {
                         return CategoryChip(
                           category: Category(
-                            id: '',
-                            name: '全部',
+                            id: 'featured',
+                            name: '推荐',
                             storeTypeAssociation: StoreTypeAssociation.all,
                             miniAppAssociation: [],
                           ),
-                          isSelected: _selectedCategoryId == null,
+                          isSelected: _selectedCategoryId == null || _selectedCategoryId == 'featured',
                           onTap: () {
                             setState(() {
-                              _selectedCategoryId = null;
+                              _selectedCategoryId = 'featured';
                             });
                           },
                         );

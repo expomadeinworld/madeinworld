@@ -86,15 +86,23 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 
 		// Category endpoints
 		v1.GET("/categories", handler.GetCategories)
+		v1.POST("/categories", handler.CreateCategory)
+		v1.PUT("/categories/:id", handler.UpdateCategory)
+		v1.DELETE("/categories/:id", handler.DeleteCategory)
 		v1.GET("/categories/:id/subcategories", handler.GetSubcategories)
 		v1.POST("/categories/:id/subcategories", handler.CreateSubcategory)
 
 		// Subcategory endpoints
 		v1.PUT("/subcategories/:id", handler.UpdateSubcategory)
 		v1.DELETE("/subcategories/:id", handler.DeleteSubcategory)
+		v1.POST("/subcategories/:id/image", handler.UploadSubcategoryImage)
 
 		// Store endpoints
 		v1.GET("/stores", handler.GetStores)
+		v1.POST("/stores", handler.CreateStore)
+		v1.PUT("/stores/:id", handler.UpdateStore)
+		v1.DELETE("/stores/:id", handler.DeleteStore)
+		v1.POST("/stores/:id/image", handler.UploadStoreImage)
 	}
 
 	// Root endpoint for basic info

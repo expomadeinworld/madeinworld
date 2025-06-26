@@ -198,7 +198,7 @@ class _ProductsTab extends StatefulWidget {
 }
 
 class _ProductsTabState extends State<_ProductsTab> {
-  String? _selectedCategoryId;
+  String? _selectedCategoryId = 'featured'; // Default to featured/推荐
   final ApiService _apiService = ApiService();
   late Future<List<Category>> _categoriesFuture;
   late Future<List<Product>> _productsFuture;
@@ -207,11 +207,11 @@ class _ProductsTabState extends State<_ProductsTab> {
   void initState() {
     super.initState();
     _categoriesFuture = _apiService.fetchCategoriesWithFilters(
-      storeType: StoreType.retail,
+      storeType: StoreType.exhibitionStore,
       miniAppType: MiniAppType.retailStore,
       includeSubcategories: true,
     );
-    _productsFuture = _apiService.fetchProducts(storeType: StoreType.retail);
+    _productsFuture = _apiService.fetchProducts(storeType: StoreType.exhibitionStore);
   }
 
   @override
@@ -257,11 +257,11 @@ class _ProductsTabState extends State<_ProductsTab> {
                   onPressed: () {
                     setState(() {
                       _categoriesFuture = _apiService.fetchCategoriesWithFilters(
-                        storeType: StoreType.retail,
+                        storeType: StoreType.exhibitionStore,
                         miniAppType: MiniAppType.retailStore,
                         includeSubcategories: true,
                       );
-                      _productsFuture = _apiService.fetchProducts(storeType: StoreType.retail);
+                      _productsFuture = _apiService.fetchProducts(storeType: StoreType.exhibitionStore);
                     });
                   },
                   style: ElevatedButton.styleFrom(
@@ -298,15 +298,15 @@ class _ProductsTabState extends State<_ProductsTab> {
                     if (index == 0) {
                       return CategoryChip(
                         category: Category(
-                          id: '',
-                          name: '全部',
+                          id: 'featured',
+                          name: '推荐',
                           storeTypeAssociation: StoreTypeAssociation.all,
                           miniAppAssociation: [],
                         ),
-                        isSelected: _selectedCategoryId == null,
+                        isSelected: _selectedCategoryId == null || _selectedCategoryId == 'featured',
                         onTap: () {
                           setState(() {
-                            _selectedCategoryId = null;
+                            _selectedCategoryId = 'featured';
                           });
                         },
                       );

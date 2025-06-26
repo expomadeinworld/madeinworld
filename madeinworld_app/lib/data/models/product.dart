@@ -42,8 +42,39 @@ class Product {
   }
 
   bool get hasStock {
-    if (storeType == StoreType.retail) return true; // Retail always has stock
+    // Exhibition stores and malls always show as having stock
+    if (storeType == StoreType.exhibitionStore || storeType == StoreType.exhibitionMall) {
+      return true;
+    }
+    // Unmanned stores and warehouses check actual stock
     return displayStock != null && displayStock! > 0;
+  }
+
+  // Helper method to safely parse store type from API response
+  static StoreType _parseStoreType(dynamic storeTypeValue) {
+    if (storeTypeValue == null) return StoreType.exhibitionStore; // Default fallback
+
+    final storeTypeStr = storeTypeValue.toString();
+
+    // Try to parse Chinese values from backend
+    try {
+      return StoreTypeExtension.fromChineseValue(storeTypeStr);
+    } catch (e) {
+      // Fallback: try English enum values
+      try {
+        return StoreTypeExtension.fromApiValue(storeTypeStr);
+      } catch (e) {
+        // Final fallback: try enum name matching
+        try {
+          return StoreType.values.firstWhere(
+            (e) => e.toString().split('.').last.toLowerCase() == storeTypeStr.toLowerCase(),
+          );
+        } catch (e) {
+          // Ultimate fallback
+          return StoreType.exhibitionStore;
+        }
+      }
+    }
   }
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -54,9 +85,7 @@ class Product {
       descriptionShort: json['description_short'],
       descriptionLong: json['description_long'],
       manufacturerId: json['manufacturer_id'].toString(), // Convert int to string
-      storeType: StoreType.values.firstWhere(
-        (e) => e.toString().split('.').last.toLowerCase() == json['store_type'].toString().toLowerCase(),
-      ),
+      storeType: _parseStoreType(json['store_type']),
       mainPrice: json['main_price'].toDouble(),
       strikethroughPrice: json['strikethrough_price']?.toDouble(),
       isActive: json['is_active'] ?? true,

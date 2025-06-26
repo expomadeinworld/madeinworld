@@ -25,6 +25,11 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  Tabs,
+  Tab,
+  Divider,
+  Avatar,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -33,22 +38,33 @@ import {
   ExpandMore as ExpandMoreIcon,
   Category as CategoryIcon,
   AccountTree as SubcategoryIcon,
+  Store as StoreIcon,
+  ShoppingBag as RetailIcon,
+  SmartToy as UnmannedIcon,
+  Storefront as ExhibitionIcon,
+  Group as GroupBuyingIcon,
+  PhotoCamera as PhotoIcon,
 } from '@mui/icons-material';
 import { useToast } from '../contexts/ToastContext';
 
 const CategoryListPage = () => {
   const [categories, setCategories] = useState([]);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentTab, setCurrentTab] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openSubcategoryDialog, setOpenSubcategoryDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingSubcategory, setEditingSubcategory] = useState(null);
   const [selectedCategoryForSubcategory, setSelectedCategoryForSubcategory] = useState(null);
+  const [selectedStore, setSelectedStore] = useState(null);
   const { showToast } = useToast();
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     mini_app_association: [],
+    store_id: null,
+    is_active: true,
   });
 
   const [subcategoryForm, setSubcategoryForm] = useState({
@@ -57,21 +73,62 @@ const CategoryListPage = () => {
     display_order: 0,
   });
 
-  const miniAppOptions = [
-    { value: 'RetailStore', label: '零售门店' },
-    { value: 'UnmannedStore', label: '无人商店' },
-    { value: 'ExhibitionSales', label: '展销展消' },
-    { value: 'GroupBuying', label: '团购团批' },
+  const miniAppTabs = [
+    {
+      value: 'RetailStore',
+      label: '零售门店',
+      icon: <RetailIcon />,
+      color: '#d32f2f',
+      requiresStore: false,
+      description: 'Direct category management without store location'
+    },
+    {
+      value: 'UnmannedStore',
+      label: '无人商店',
+      icon: <UnmannedIcon />,
+      color: '#1976d2',
+      requiresStore: true,
+      description: 'Categories scoped by store location (无人门店 + 无人仓店)'
+    },
+    {
+      value: 'ExhibitionSales',
+      label: '展销展消',
+      icon: <ExhibitionIcon />,
+      color: '#7b1fa2',
+      requiresStore: true,
+      description: 'Categories scoped by store location (展销商店 + 展销商城)'
+    },
+    {
+      value: 'GroupBuying',
+      label: '团购团批',
+      icon: <GroupBuyingIcon />,
+      color: '#f57c00',
+      requiresStore: false,
+      description: 'Direct category management without store location'
+    },
   ];
 
   useEffect(() => {
     fetchCategories();
+    fetchStores();
   }, []);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [currentTab, selectedStore]);
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8080/api/v1/categories?include_subcategories=true');
+      const currentMiniApp = miniAppTabs[currentTab];
+      let url = `http://localhost:8080/api/v1/categories?mini_app_type=${currentMiniApp.value}&include_subcategories=true&include_store_info=true`;
+
+      // Add store filter for location-based mini-apps
+      if (currentMiniApp.requiresStore && selectedStore) {
+        url += `&store_id=${selectedStore.id}`;
+      }
+
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -86,20 +143,50 @@ const CategoryListPage = () => {
     }
   };
 
+  const fetchStores = async () => {
+    try {
+      const currentMiniApp = miniAppTabs[currentTab];
+      if (!currentMiniApp.requiresStore) return;
+
+      const response = await fetch(`http://localhost:8080/api/v1/stores?mini_app_type=${currentMiniApp.value}`);
+      if (response.ok) {
+        const data = await response.json();
+        setStores(data);
+        // Auto-select first store if none selected
+        if (data.length > 0 && !selectedStore) {
+          setSelectedStore(data[0]);
+        }
+      } else {
+        showToast('Failed to fetch stores', 'error');
+      }
+    } catch (error) {
+      console.error('Error fetching stores:', error);
+      showToast('Error fetching stores', 'error');
+    }
+  };
+
   const handleCreateCategory = async () => {
     try {
+      const currentMiniApp = miniAppTabs[currentTab];
+      const categoryData = {
+        ...categoryForm,
+        mini_app_association: [currentMiniApp.value],
+        store_type_association: 'All',
+        store_id: currentMiniApp.requiresStore ? selectedStore?.id : null,
+      };
+
       const response = await fetch('http://localhost:8080/api/v1/categories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(categoryForm),
+        body: JSON.stringify(categoryData),
       });
 
       if (response.ok) {
         showToast('Category created successfully', 'success');
         setOpenDialog(false);
-        setCategoryForm({ name: '', mini_app_association: [] });
+        resetCategoryForm();
         fetchCategories();
       } else {
         showToast('Failed to create category', 'error');
@@ -112,19 +199,27 @@ const CategoryListPage = () => {
 
   const handleUpdateCategory = async () => {
     try {
+      const currentMiniApp = miniAppTabs[currentTab];
+      const categoryData = {
+        ...categoryForm,
+        mini_app_association: [currentMiniApp.value],
+        store_type_association: 'All',
+        store_id: currentMiniApp.requiresStore ? selectedStore?.id : null,
+      };
+
       const response = await fetch(`http://localhost:8080/api/v1/categories/${editingCategory.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(categoryForm),
+        body: JSON.stringify(categoryData),
       });
 
       if (response.ok) {
         showToast('Category updated successfully', 'success');
         setOpenDialog(false);
         setEditingCategory(null);
-        setCategoryForm({ name: '', mini_app_association: [] });
+        resetCategoryForm();
         fetchCategories();
       } else {
         showToast('Failed to update category', 'error');
@@ -135,25 +230,7 @@ const CategoryListPage = () => {
     }
   };
 
-  const handleDeleteCategory = async (categoryId) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      try {
-        const response = await fetch(`http://localhost:8080/api/v1/categories/${categoryId}`, {
-          method: 'DELETE',
-        });
 
-        if (response.ok) {
-          showToast('Category deleted successfully', 'success');
-          fetchCategories();
-        } else {
-          showToast('Failed to delete category', 'error');
-        }
-      } catch (error) {
-        console.error('Error deleting category:', error);
-        showToast('Error deleting category', 'error');
-      }
-    }
-  };
 
   const handleCreateSubcategory = async () => {
     try {
@@ -225,18 +302,26 @@ const CategoryListPage = () => {
     }
   };
 
-  const openCategoryDialog = (category = null) => {
-    if (category) {
-      setEditingCategory(category);
-      setCategoryForm({
-        name: category.name,
-        mini_app_association: category.mini_app_association || [],
+  const handleSubcategoryImageUpload = async (subcategoryId, file) => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch(`http://localhost:8080/api/v1/subcategories/${subcategoryId}/image`, {
+        method: 'POST',
+        body: formData,
       });
-    } else {
-      setEditingCategory(null);
-      setCategoryForm({ name: '', mini_app_association: [] });
+
+      if (response.ok) {
+        showToast('Subcategory image uploaded successfully', 'success');
+        fetchCategories();
+      } else {
+        showToast('Failed to upload subcategory image', 'error');
+      }
+    } catch (error) {
+      console.error('Error uploading subcategory image:', error);
+      showToast('Error uploading subcategory image', 'error');
     }
-    setOpenDialog(true);
   };
 
   const openSubcategoryDialogHandler = (category, subcategory = null) => {
@@ -255,10 +340,7 @@ const CategoryListPage = () => {
     setOpenSubcategoryDialog(true);
   };
 
-  const getMiniAppLabel = (value) => {
-    const option = miniAppOptions.find(opt => opt.value === value);
-    return option ? option.label : value;
-  };
+
 
   if (loading) {
     return (
@@ -268,24 +350,197 @@ const CategoryListPage = () => {
     );
   }
 
+  const handleTabChange = (event, newValue) => {
+    setCurrentTab(newValue);
+    setSelectedStore(null);
+    setCategories([]);
+  };
+
+  const resetCategoryForm = () => {
+    setCategoryForm({
+      name: '',
+      mini_app_association: [],
+      store_id: null,
+      is_active: true,
+    });
+  };
+
+  const openCategoryDialog = (category = null) => {
+    if (category) {
+      setEditingCategory(category);
+      setCategoryForm({
+        name: category.name,
+        mini_app_association: category.mini_app_association,
+        store_id: category.store_id,
+        is_active: category.is_active,
+      });
+    } else {
+      setEditingCategory(null);
+      resetCategoryForm();
+    }
+    setOpenDialog(true);
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    if (window.confirm('Are you sure you want to delete this category?')) {
+      try {
+        const response = await fetch(`http://localhost:8080/api/v1/categories/${categoryId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.ok) {
+          showToast('Category deleted successfully', 'success');
+          fetchCategories();
+        } else {
+          showToast('Failed to delete category', 'error');
+        }
+      } catch (error) {
+        console.error('Error deleting category:', error);
+        showToast('Error deleting category', 'error');
+      }
+    }
+  };
+
+  const getMiniAppLabel = (value) => {
+    const tab = miniAppTabs.find(tab => tab.value === value);
+    return tab ? tab.label : value;
+  };
+
+  const currentMiniApp = miniAppTabs[currentTab];
+
   return (
-    <Box>
+    <Box p={3}>
+      <Typography variant="h4" component="h1" mb={3}>
+        Category Management
+      </Typography>
+
+      {/* Mini-App Tabs */}
+      <Tabs
+        value={currentTab}
+        onChange={handleTabChange}
+        variant="fullWidth"
+        sx={{ mb: 3 }}
+      >
+        {miniAppTabs.map((tab, index) => (
+          <Tab
+            key={tab.value}
+            icon={tab.icon}
+            label={tab.label}
+            sx={{
+              color: tab.color,
+              '&.Mui-selected': {
+                color: tab.color,
+                fontWeight: 'bold'
+              }
+            }}
+          />
+        ))}
+      </Tabs>
+
+      {/* Current Mini-App Info */}
+      <Card sx={{ mb: 3, bgcolor: `${currentMiniApp.color}10` }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" mb={2}>
+            {currentMiniApp.icon}
+            <Typography variant="h6" sx={{ ml: 1, color: currentMiniApp.color }}>
+              {currentMiniApp.label}
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {currentMiniApp.description}
+          </Typography>
+        </CardContent>
+      </Card>
+
+      {/* Store Selection for Location-Based Mini-Apps */}
+      {currentMiniApp.requiresStore && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" mb={2}>
+              Select Store Location
+            </Typography>
+            {stores.length === 0 ? (
+              <Alert severity="warning">
+                No stores found for this mini-app type. Please create stores first.
+              </Alert>
+            ) : (
+              <Grid container spacing={2}>
+                {stores.map((store) => (
+                  <Grid item xs={12} sm={6} md={4} key={store.id}>
+                    <Card
+                      sx={{
+                        cursor: 'pointer',
+                        border: selectedStore?.id === store.id ? `2px solid ${currentMiniApp.color}` : '1px solid #e0e0e0',
+                        '&:hover': { boxShadow: 2 }
+                      }}
+                      onClick={() => setSelectedStore(store)}
+                    >
+                      <CardContent>
+                        <Box display="flex" alignItems="center">
+                          <Avatar
+                            src={store.image_url}
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              mr: 2,
+                              bgcolor: currentMiniApp.color
+                            }}
+                          >
+                            <StoreIcon />
+                          </Avatar>
+                          <Box>
+                            <Typography variant="subtitle1">
+                              {store.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {store.city} • {store.type}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action Bar */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Category Management
-        </Typography>
+        <Box>
+          {selectedStore && (
+            <Chip
+              icon={<StoreIcon />}
+              label={`Categories for: ${selectedStore.name}`}
+              color="primary"
+              variant="outlined"
+            />
+          )}
+        </Box>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => openCategoryDialog()}
+          disabled={currentMiniApp.requiresStore && !selectedStore}
+          sx={{ bgcolor: currentMiniApp.color }}
         >
           Add Category
         </Button>
       </Box>
 
-      {categories.length === 0 ? (
+      {/* Categories List */}
+      {loading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+          <Typography>Loading categories...</Typography>
+        </Box>
+      ) : categories.length === 0 ? (
         <Alert severity="info">
-          No categories found. Create your first category to get started.
+          {currentMiniApp.requiresStore && !selectedStore
+            ? 'Please select a store location to view categories.'
+            : 'No categories found. Create your first category to get started.'
+          }
         </Alert>
       ) : (
         <Grid container spacing={3}>
@@ -294,19 +549,33 @@ const CategoryListPage = () => {
               <Accordion>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                   <Box display="flex" alignItems="center" width="100%">
-                    <CategoryIcon sx={{ mr: 2 }} />
-                    <Typography variant="h6" sx={{ flexGrow: 1 }}>
-                      {category.name}
-                    </Typography>
+                    <CategoryIcon sx={{ mr: 2, color: currentMiniApp.color }} />
+                    <Box flexGrow={1}>
+                      <Typography variant="h6">
+                        {category.name}
+                      </Typography>
+                      {category.store_name && (
+                        <Typography variant="caption" color="text.secondary">
+                          Store: {category.store_name} ({category.store_city})
+                        </Typography>
+                      )}
+                    </Box>
                     <Box display="flex" gap={1} mr={2}>
-                      {category.mini_app_association?.map((app) => (
+                      <Chip
+                        label={currentMiniApp.label}
+                        size="small"
+                        sx={{
+                          bgcolor: currentMiniApp.color,
+                          color: 'white'
+                        }}
+                      />
+                      {category.store_type && (
                         <Chip
-                          key={app}
-                          label={getMiniAppLabel(app)}
+                          label={category.store_type}
                           size="small"
-                          color="primary"
+                          variant="outlined"
                         />
-                      ))}
+                      )}
                     </Box>
                     <IconButton
                       size="small"
@@ -323,6 +592,7 @@ const CategoryListPage = () => {
                         e.stopPropagation();
                         handleDeleteCategory(category.id);
                       }}
+                      color="error"
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -347,12 +617,32 @@ const CategoryListPage = () => {
                       <List>
                         {category.subcategories.map((subcategory) => (
                           <ListItem key={subcategory.id}>
-                            <SubcategoryIcon sx={{ mr: 2 }} />
+                            <Avatar
+                              src={subcategory.image_url}
+                              sx={{ mr: 2, width: 40, height: 40 }}
+                            >
+                              <SubcategoryIcon />
+                            </Avatar>
                             <ListItemText
                               primary={subcategory.name}
                               secondary={`Order: ${subcategory.display_order}`}
                             />
                             <ListItemSecondaryAction>
+                              <Tooltip title="Upload Image">
+                                <IconButton size="small" component="label">
+                                  <PhotoIcon />
+                                  <input
+                                    type="file"
+                                    hidden
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      if (e.target.files[0]) {
+                                        handleSubcategoryImageUpload(subcategory.id, e.target.files[0]);
+                                      }
+                                    }}
+                                  />
+                                </IconButton>
+                              </Tooltip>
                               <IconButton
                                 size="small"
                                 onClick={() => openSubcategoryDialogHandler(category, subcategory)}
@@ -362,6 +652,7 @@ const CategoryListPage = () => {
                               <IconButton
                                 size="small"
                                 onClick={() => handleDeleteSubcategory(subcategory.id)}
+                                color="error"
                               >
                                 <DeleteIcon />
                               </IconButton>
@@ -385,7 +676,12 @@ const CategoryListPage = () => {
       {/* Category Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {editingCategory ? 'Edit Category' : 'Create Category'}
+          <Box display="flex" alignItems="center">
+            {currentMiniApp.icon}
+            <Typography variant="h6" sx={{ ml: 1 }}>
+              {editingCategory ? 'Edit Category' : 'Create Category'} - {currentMiniApp.label}
+            </Typography>
+          </Box>
         </DialogTitle>
         <DialogContent>
           <TextField
@@ -398,28 +694,26 @@ const CategoryListPage = () => {
             onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <FormControl fullWidth variant="outlined">
-            <InputLabel>Mini-App Association</InputLabel>
-            <Select
-              multiple
-              value={categoryForm.mini_app_association}
-              onChange={(e) => setCategoryForm({ ...categoryForm, mini_app_association: e.target.value })}
-              label="Mini-App Association"
-              renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {selected.map((value) => (
-                    <Chip key={value} label={getMiniAppLabel(value)} size="small" />
-                  ))}
-                </Box>
-              )}
-            >
-              {miniAppOptions.map((option) => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+
+          {currentMiniApp.requiresStore && selectedStore && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              This category will be scoped to: <strong>{selectedStore.name}</strong> ({selectedStore.city})
+            </Alert>
+          )}
+
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <Typography variant="body2" color="text.secondary">
+              Mini-App:
+            </Typography>
+            <Chip
+              label={currentMiniApp.label}
+              size="small"
+              sx={{
+                bgcolor: currentMiniApp.color,
+                color: 'white'
+              }}
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>

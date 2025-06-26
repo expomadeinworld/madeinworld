@@ -9,6 +9,7 @@ import Layout from './components/Layout';
 import DashboardPage from './pages/DashboardPage';
 import ProductListPage from './pages/ProductListPage';
 import CategoryListPage from './pages/CategoryListPage';
+import StoreListPage from './pages/StoreListPage';
 import { ToastProvider } from './contexts/ToastContext';
 
 function App() {
@@ -22,8 +23,7 @@ function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/products" element={<ProductListPage />} />
               <Route path="/categories" element={<CategoryListPage />} />
-              {/* Future routes */}
-              <Route path="/stores" element={<div>Stores Page (Coming Soon)</div>} />
+              <Route path="/stores" element={<StoreListPage />} />
               <Route path="/users" element={<div>Users Page (Coming Soon)</div>} />
               <Route path="/analytics" element={<div>Analytics Page (Coming Soon)</div>} />
             </Routes>

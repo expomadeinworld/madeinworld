@@ -61,6 +61,9 @@ dependencies:
   # HTTP Client
   http: ^1.1.0
 
+  # URL Launcher
+  url_launcher: ^6.2.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

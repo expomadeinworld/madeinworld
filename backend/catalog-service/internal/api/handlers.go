@@ -20,6 +20,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// convertStoreTypeToDBValue converts English API enum values to Chinese database values
+func convertStoreTypeToDBValue(apiValue string) string {
+	switch apiValue {
+	case "UnmannedStore":
+		return "无人门店"
+	case "UnmannedWarehouse":
+		return "无人仓店"
+	case "ExhibitionStore":
+		return "展销商店"
+	case "ExhibitionMall":
+		return "展销商城"
+	default:
+		// Fallback: try to use the value as-is (for backward compatibility)
+		return apiValue
+	}
+}
+
+// convertStoreTypeToAssociation converts English API enum values to store type association values
+func convertStoreTypeToAssociation(apiValue string) string {
+	switch apiValue {
+	case "UnmannedStore", "UnmannedWarehouse":
+		return "Unmanned"
+	case "ExhibitionStore", "ExhibitionMall":
+		return "Retail"
+	default:
+		// Fallback: try to use the value as-is (for backward compatibility)
+		return apiValue
+	}
+}
+
 // Handler holds the database connection and provides HTTP handlers
 type Handler struct {
 	db *db.Database
@@ -263,8 +293,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	// Add store type filter
 	if storeType != "" {
 		query += fmt.Sprintf(" AND p.store_type = $%d", argIndex)
-		// FIX: Capitalize the input to match the PostgreSQL ENUM
-		args = append(args, strings.Title(storeType))
+		// Convert English enum values to Chinese database values
+		dbStoreType := convertStoreTypeToDBValue(storeType)
+		args = append(args, dbStoreType)
 		argIndex++
 	}
 
@@ -331,8 +362,8 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			product.CategoryIds = categories
 		}
 
-		// Get stock quantity for unmanned stores
-		if product.StoreType == models.StoreTypeUnmanned {
+		// Get stock quantity for unmanned stores and warehouses
+		if product.StoreType == models.StoreTypeUnmannedStore || product.StoreType == models.StoreTypeUnmannedWarehouse {
 			stockQuantity, err := h.getProductStock(ctx, product.ID, storeID)
 			if err != nil {
 				log.Printf("Error getting stock for product %d: %v", product.ID, err)
@@ -416,8 +447,8 @@ func (h *Handler) GetProduct(c *gin.Context) {
 		product.CategoryIds = categories
 	}
 
-	// Get stock quantity for unmanned stores
-	if product.StoreType == models.StoreTypeUnmanned {
+	// Get stock quantity for unmanned stores and warehouses
+	if product.StoreType == models.StoreTypeUnmannedStore || product.StoreType == models.StoreTypeUnmannedWarehouse {
 		storeID := c.Query("store_id")
 		stockQuantity, err := h.getProductStock(ctx, product.ID, storeID)
 		if err != nil {
@@ -437,20 +468,46 @@ func (h *Handler) GetCategories(c *gin.Context) {
 
 	storeType := c.Query("store_type")
 	miniAppType := c.Query("mini_app_type")
+	storeID := c.Query("store_id")
 	includeSubcategories := c.Query("include_subcategories") == "true"
+	includeStoreInfo := c.Query("include_store_info") == "true"
 
-	query := `
-        SELECT category_id, name, store_type_association, mini_app_association, created_at, updated_at
-        FROM product_categories
-    `
+	// Base query with optional store information
+	var query string
+	if includeStoreInfo {
+		query = `
+            SELECT
+                c.category_id, c.name, c.store_type_association, c.mini_app_association,
+                c.store_id, c.is_active, c.created_at, c.updated_at,
+                s.name as store_name, s.city as store_city, s.latitude as store_latitude,
+                s.longitude as store_longitude, s.type as store_type
+            FROM product_categories c
+            LEFT JOIN stores s ON c.store_id = s.store_id
+        `
+	} else {
+		query = `
+            SELECT
+                category_id, name, store_type_association, mini_app_association,
+                store_id, is_active, created_at, updated_at
+            FROM product_categories
+        `
+	}
 
 	args := []interface{}{}
 	argIndex := 1
-	conditions := []string{}
+	// Fix: Qualify the is_active column to avoid ambiguity when joining with stores table
+	var conditions []string
+	if includeStoreInfo {
+		conditions = []string{"c.is_active = true"}
+	} else {
+		conditions = []string{"is_active = true"}
+	}
 
 	if storeType != "" {
 		conditions = append(conditions, fmt.Sprintf("(store_type_association = $%d OR store_type_association = 'All')", argIndex))
-		args = append(args, strings.Title(storeType))
+		// Convert English enum values to appropriate store type association values
+		dbStoreTypeAssociation := convertStoreTypeToAssociation(storeType)
+		args = append(args, dbStoreTypeAssociation)
 		argIndex++
 	}
 
@@ -460,11 +517,21 @@ func (h *Handler) GetCategories(c *gin.Context) {
 		argIndex++
 	}
 
+	if storeID != "" {
+		conditions = append(conditions, fmt.Sprintf("(store_id = $%d OR store_id IS NULL)", argIndex))
+		args = append(args, storeID)
+		argIndex++
+	}
+
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	query += " ORDER BY category_id"
+	if includeStoreInfo {
+		query += " ORDER BY c.category_id"
+	} else {
+		query += " ORDER BY category_id"
+	}
 
 	rows, err := h.db.Pool.Query(ctx, query, args...)
 	if err != nil {
@@ -478,18 +545,44 @@ func (h *Handler) GetCategories(c *gin.Context) {
 
 	for rows.Next() {
 		var category models.Category
-		err := rows.Scan(
-			&category.ID,
-			&category.Name,
-			&category.StoreTypeAssociation,
-			&category.MiniAppAssociation,
-			&category.CreatedAt,
-			&category.UpdatedAt,
-		)
-		if err != nil {
-			log.Printf("Error scanning category: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan category"})
-			return
+
+		if includeStoreInfo {
+			err := rows.Scan(
+				&category.ID,
+				&category.Name,
+				&category.StoreTypeAssociation,
+				&category.MiniAppAssociation,
+				&category.StoreID,
+				&category.IsActive,
+				&category.CreatedAt,
+				&category.UpdatedAt,
+				&category.StoreName,
+				&category.StoreCity,
+				&category.StoreLatitude,
+				&category.StoreLongitude,
+				&category.StoreType,
+			)
+			if err != nil {
+				log.Printf("Error scanning category with store info: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan category"})
+				return
+			}
+		} else {
+			err := rows.Scan(
+				&category.ID,
+				&category.Name,
+				&category.StoreTypeAssociation,
+				&category.MiniAppAssociation,
+				&category.StoreID,
+				&category.IsActive,
+				&category.CreatedAt,
+				&category.UpdatedAt,
+			)
+			if err != nil {
+				log.Printf("Error scanning category: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan category"})
+				return
+			}
 		}
 
 		// Load subcategories if requested
@@ -554,22 +647,67 @@ func (h *Handler) GetStores(c *gin.Context) {
 	defer cancel()
 
 	storeType := c.Query("type")
+	miniAppType := c.Query("mini_app_type")
+	userLat := c.Query("user_lat")
+	userLng := c.Query("user_lng")
+	orderByDistance := c.Query("order_by_distance") == "true"
 
-	query := `
-        SELECT store_id, name, city, address, latitude, longitude, type, is_active, created_at, updated_at
-        FROM stores
-        WHERE is_active = true
-    `
-
-	args := []interface{}{}
-	if storeType != "" {
-		query += " AND type = $1"
-		// FIX: Capitalize the input to match the PostgreSQL ENUM
-		args = append(args, strings.Title(storeType))
+	// Base query with distance calculation if user location provided
+	var query string
+	if userLat != "" && userLng != "" && orderByDistance {
+		query = `
+            SELECT
+                store_id, name, city, address, latitude, longitude, type, image_url, is_active, created_at, updated_at,
+                (6371 * acos(cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2)) + sin(radians($1)) * sin(radians(latitude)))) AS distance_km
+            FROM stores
+            WHERE is_active = true
+        `
+	} else {
+		query = `
+            SELECT store_id, name, city, address, latitude, longitude, type, image_url, is_active, created_at, updated_at
+            FROM stores
+            WHERE is_active = true
+        `
 	}
 
-	query += " ORDER BY store_id"
+	args := []interface{}{}
+	argIndex := 1
 
+	// Add user coordinates to args if distance calculation is requested
+	if userLat != "" && userLng != "" && orderByDistance {
+		args = append(args, userLat, userLng)
+		argIndex = 3
+	}
+
+	// Filter by store type
+	if storeType != "" {
+		query += fmt.Sprintf(" AND type = $%d", argIndex)
+		// Convert English enum values to Chinese database values
+		dbStoreType := convertStoreTypeToDBValue(storeType)
+		args = append(args, dbStoreType)
+		argIndex++
+	}
+
+	// Filter by mini-app type (map store types to mini-app types)
+	if miniAppType != "" {
+		switch miniAppType {
+		case "UnmannedStore":
+			query += fmt.Sprintf(" AND type IN ($%d, $%d)", argIndex, argIndex+1)
+			args = append(args, "无人门店", "无人仓店")
+			argIndex += 2
+		case "ExhibitionSales":
+			query += fmt.Sprintf(" AND type IN ($%d, $%d)", argIndex, argIndex+1)
+			args = append(args, "展销商店", "展销商城")
+			argIndex += 2
+		}
+	}
+
+	// Order by distance if requested, otherwise by store_id
+	if userLat != "" && userLng != "" && orderByDistance {
+		query += " ORDER BY distance_km"
+	} else {
+		query += " ORDER BY store_id"
+	}
 	rows, err := h.db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		log.Printf("Error querying stores: %v", err)
@@ -582,22 +720,47 @@ func (h *Handler) GetStores(c *gin.Context) {
 
 	for rows.Next() {
 		var store models.Store
-		err := rows.Scan(
-			&store.ID,
-			&store.Name,
-			&store.City,
-			&store.Address,
-			&store.Latitude,
-			&store.Longitude,
-			&store.Type,
-			&store.IsActive,
-			&store.CreatedAt,
-			&store.UpdatedAt,
-		)
-		if err != nil {
-			log.Printf("Error scanning store: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan store"})
-			return
+		var distanceKm *float64
+
+		if userLat != "" && userLng != "" && orderByDistance {
+			err := rows.Scan(
+				&store.ID,
+				&store.Name,
+				&store.City,
+				&store.Address,
+				&store.Latitude,
+				&store.Longitude,
+				&store.Type,
+				&store.ImageURL,
+				&store.IsActive,
+				&store.CreatedAt,
+				&store.UpdatedAt,
+				&distanceKm,
+			)
+			if err != nil {
+				log.Printf("Error scanning store with distance: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan store"})
+				return
+			}
+		} else {
+			err := rows.Scan(
+				&store.ID,
+				&store.Name,
+				&store.City,
+				&store.Address,
+				&store.Latitude,
+				&store.Longitude,
+				&store.Type,
+				&store.ImageURL,
+				&store.IsActive,
+				&store.CreatedAt,
+				&store.UpdatedAt,
+			)
+			if err != nil {
+				log.Printf("Error scanning store: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan store"})
+				return
+			}
 		}
 
 		stores = append(stores, store)
@@ -931,4 +1094,422 @@ func (h *Handler) DeleteSubcategory(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Subcategory deleted successfully"})
+}
+
+// CreateCategory handles POST /categories
+func (h *Handler) CreateCategory(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	var newCategory models.Category
+	if err := c.ShouldBindJSON(&newCategory); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	query := `
+        INSERT INTO product_categories (name, store_type_association, mini_app_association, store_id, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING category_id, created_at, updated_at
+    `
+
+	var categoryID int
+	var createdAt, updatedAt time.Time
+	err := h.db.Pool.QueryRow(ctx, query,
+		newCategory.Name,
+		newCategory.StoreTypeAssociation,
+		newCategory.MiniAppAssociation,
+		newCategory.StoreID,
+		newCategory.IsActive,
+	).Scan(&categoryID, &createdAt, &updatedAt)
+
+	if err != nil {
+		log.Printf("Failed to create category in DB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create category"})
+		return
+	}
+
+	newCategory.ID = categoryID
+	newCategory.CreatedAt = createdAt
+	newCategory.UpdatedAt = updatedAt
+
+	c.JSON(http.StatusCreated, newCategory)
+}
+
+// UpdateCategory handles PUT /categories/:id
+func (h *Handler) UpdateCategory(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	categoryID := c.Param("id")
+
+	var updatedCategory models.Category
+	if err := c.ShouldBindJSON(&updatedCategory); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	query := `
+        UPDATE product_categories
+        SET name = $2, store_type_association = $3, mini_app_association = $4, store_id = $5, is_active = $6, updated_at = CURRENT_TIMESTAMP
+        WHERE category_id = $1
+        RETURNING updated_at
+    `
+
+	var updatedAt time.Time
+	err := h.db.Pool.QueryRow(ctx, query,
+		categoryID,
+		updatedCategory.Name,
+		updatedCategory.StoreTypeAssociation,
+		updatedCategory.MiniAppAssociation,
+		updatedCategory.StoreID,
+		updatedCategory.IsActive,
+	).Scan(&updatedAt)
+
+	if err != nil {
+		log.Printf("Failed to update category in DB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update category"})
+		return
+	}
+
+	updatedCategory.UpdatedAt = updatedAt
+	c.JSON(http.StatusOK, updatedCategory)
+}
+
+// DeleteCategory handles DELETE /categories/:id
+func (h *Handler) DeleteCategory(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	categoryID := c.Param("id")
+
+	// Check if hard delete is requested (query parameter)
+	hardDelete := c.Query("hard") == "true"
+
+	if hardDelete {
+		// Perform hard delete (completely remove from database)
+		query := `DELETE FROM product_categories WHERE category_id = $1`
+		_, err := h.db.Pool.Exec(ctx, query, categoryID)
+		if err != nil {
+			log.Printf("Failed to hard delete category %s: %v", categoryID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete category"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message":     "Category permanently deleted",
+			"category_id": categoryID,
+		})
+	} else {
+		// Perform soft delete (set is_active = false)
+		query := `
+            UPDATE product_categories
+            SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE category_id = $1
+        `
+		result, err := h.db.Pool.Exec(ctx, query, categoryID)
+		if err != nil {
+			log.Printf("Failed to soft delete category %s: %v", categoryID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete category"})
+			return
+		}
+
+		rowsAffected := result.RowsAffected()
+		if rowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Category not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":     "Category deleted successfully",
+			"category_id": categoryID,
+		})
+	}
+}
+
+// CreateStore handles POST /stores
+func (h *Handler) CreateStore(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	var newStore models.Store
+	if err := c.ShouldBindJSON(&newStore); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	query := `
+        INSERT INTO stores (name, city, address, latitude, longitude, type, image_url, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING store_id, created_at, updated_at
+    `
+
+	var storeID int
+	var createdAt, updatedAt time.Time
+	err := h.db.Pool.QueryRow(ctx, query,
+		newStore.Name,
+		newStore.City,
+		newStore.Address,
+		newStore.Latitude,
+		newStore.Longitude,
+		newStore.Type,
+		newStore.ImageURL,
+		newStore.IsActive,
+	).Scan(&storeID, &createdAt, &updatedAt)
+
+	if err != nil {
+		log.Printf("Failed to create store in DB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create store"})
+		return
+	}
+
+	newStore.ID = storeID
+	newStore.CreatedAt = createdAt
+	newStore.UpdatedAt = updatedAt
+
+	c.JSON(http.StatusCreated, newStore)
+}
+
+// UpdateStore handles PUT /stores/:id
+func (h *Handler) UpdateStore(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	storeID := c.Param("id")
+
+	var updatedStore models.Store
+	if err := c.ShouldBindJSON(&updatedStore); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	query := `
+        UPDATE stores
+        SET name = $2, city = $3, address = $4, latitude = $5, longitude = $6, type = $7, image_url = $8, is_active = $9, updated_at = CURRENT_TIMESTAMP
+        WHERE store_id = $1
+        RETURNING updated_at
+    `
+
+	var updatedAt time.Time
+	err := h.db.Pool.QueryRow(ctx, query,
+		storeID,
+		updatedStore.Name,
+		updatedStore.City,
+		updatedStore.Address,
+		updatedStore.Latitude,
+		updatedStore.Longitude,
+		updatedStore.Type,
+		updatedStore.ImageURL,
+		updatedStore.IsActive,
+	).Scan(&updatedAt)
+
+	if err != nil {
+		log.Printf("Failed to update store in DB: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update store"})
+		return
+	}
+
+	updatedStore.UpdatedAt = updatedAt
+	c.JSON(http.StatusOK, updatedStore)
+}
+
+// DeleteStore handles DELETE /stores/:id
+func (h *Handler) DeleteStore(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	storeID := c.Param("id")
+
+	// Check if hard delete is requested (query parameter)
+	hardDelete := c.Query("hard") == "true"
+
+	if hardDelete {
+		// Perform hard delete (completely remove from database)
+		query := `DELETE FROM stores WHERE store_id = $1`
+		_, err := h.db.Pool.Exec(ctx, query, storeID)
+		if err != nil {
+			log.Printf("Failed to hard delete store %s: %v", storeID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete store"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message":  "Store permanently deleted",
+			"store_id": storeID,
+		})
+	} else {
+		// Perform soft delete (set is_active = false)
+		query := `
+            UPDATE stores
+            SET is_active = false, updated_at = CURRENT_TIMESTAMP
+            WHERE store_id = $1
+        `
+		result, err := h.db.Pool.Exec(ctx, query, storeID)
+		if err != nil {
+			log.Printf("Failed to soft delete store %s: %v", storeID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete store"})
+			return
+		}
+
+		rowsAffected := result.RowsAffected()
+		if rowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Store not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":  "Store deleted successfully",
+			"store_id": storeID,
+		})
+	}
+}
+
+// UploadSubcategoryImage handles POST /subcategories/:id/image
+func (h *Handler) UploadSubcategoryImage(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	subcategoryID := c.Param("id")
+
+	// Parse multipart form
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No image file provided"})
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	if !isValidImageType(header.Header.Get("Content-Type")) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image type. Only JPEG, PNG, and WebP are allowed"})
+		return
+	}
+
+	// Generate unique filename
+	filename := fmt.Sprintf("subcategory_%s_%d_%s", subcategoryID, time.Now().Unix(), header.Filename)
+	filepath := fmt.Sprintf("uploads/subcategories/%s", filename)
+
+	// Save file to disk
+	if err := saveUploadedFile(file, filepath); err != nil {
+		log.Printf("Failed to save subcategory image: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+		return
+	}
+
+	// Update subcategory with image URL
+	imageURL := fmt.Sprintf("/uploads/subcategories/%s", filename)
+	query := `
+        UPDATE subcategories
+        SET image_url = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE subcategory_id = $1
+        RETURNING updated_at
+    `
+
+	var updatedAt time.Time
+	err = h.db.Pool.QueryRow(ctx, query, subcategoryID, imageURL).Scan(&updatedAt)
+	if err != nil {
+		log.Printf("Failed to update subcategory image URL: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update subcategory"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Image uploaded successfully",
+		"image_url":  imageURL,
+		"updated_at": updatedAt,
+	})
+}
+
+// UploadStoreImage handles POST /stores/:id/image
+func (h *Handler) UploadStoreImage(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	storeID := c.Param("id")
+
+	// Parse multipart form
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No image file provided"})
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	if !isValidImageType(header.Header.Get("Content-Type")) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image type. Only JPEG, PNG, and WebP are allowed"})
+		return
+	}
+
+	// Generate unique filename
+	filename := fmt.Sprintf("store_%s_%d_%s", storeID, time.Now().Unix(), header.Filename)
+	filepath := fmt.Sprintf("uploads/stores/%s", filename)
+
+	// Save file to disk
+	if err := saveUploadedFile(file, filepath); err != nil {
+		log.Printf("Failed to save store image: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+		return
+	}
+
+	// Update store with image URL
+	imageURL := fmt.Sprintf("/uploads/stores/%s", filename)
+	query := `
+        UPDATE stores
+        SET image_url = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE store_id = $1
+        RETURNING updated_at
+    `
+
+	var updatedAt time.Time
+	err = h.db.Pool.QueryRow(ctx, query, storeID, imageURL).Scan(&updatedAt)
+	if err != nil {
+		log.Printf("Failed to update store image URL: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update store"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Image uploaded successfully",
+		"image_url":  imageURL,
+		"updated_at": updatedAt,
+	})
+}
+
+// Helper function to validate image file types
+func isValidImageType(contentType string) bool {
+	validTypes := []string{
+		"image/jpeg",
+		"image/jpg",
+		"image/png",
+		"image/webp",
+	}
+
+	for _, validType := range validTypes {
+		if contentType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper function to save uploaded file to disk
+func saveUploadedFile(file multipart.File, filepath string) error {
+	// Create directory if it doesn't exist
+	dir := filepath[:strings.LastIndex(filepath, "/")]
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	// Create destination file
+	dst, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %v", err)
+	}
+	defer dst.Close()
+
+	// Copy file content
+	if _, err := io.Copy(dst, file); err != nil {
+		return fmt.Errorf("failed to copy file: %v", err)
+	}
+
+	return nil
 }

@@ -57,7 +57,7 @@ class MockDataService {
         descriptionShort: '经典口味',
         descriptionLong: '经典可口可乐，12瓶装，清爽怡人，是聚会和日常饮用的完美选择。',
         manufacturerId: 'mfg-001',
-        storeType: StoreType.unmanned,
+        storeType: StoreType.unmannedStore,
         mainPrice: 9.99,
         strikethroughPrice: 12.50,
         isFeatured: true,
@@ -72,7 +72,7 @@ class MockDataService {
         descriptionShort: '意大利进口',
         descriptionLong: '正宗意大利百味来5号意面，优质小麦制作，口感Q弹，是制作各种意面料理的理想选择。',
         manufacturerId: 'mfg-002',
-        storeType: StoreType.retail,
+        storeType: StoreType.exhibitionStore,
         mainPrice: 1.49,
         strikethroughPrice: 1.99,
         isFeatured: true,
@@ -86,7 +86,7 @@ class MockDataService {
         descriptionShort: '源自阿尔卑斯',
         descriptionLong: '来自阿尔卑斯山的天然矿泉水，富含矿物质，口感清甜，6瓶装经济实惠。',
         manufacturerId: 'mfg-003',
-        storeType: StoreType.unmanned,
+        storeType: StoreType.unmannedStore,
         mainPrice: 2.99,
         strikethroughPrice: 3.80,
         isFeatured: true,
@@ -101,7 +101,7 @@ class MockDataService {
         descriptionShort: '丝滑享受',
         descriptionLong: '瑞士莲经典牛奶巧克力，丝滑细腻的口感，甜而不腻，是巧克力爱好者的首选。',
         manufacturerId: 'mfg-004',
-        storeType: StoreType.unmanned,
+        storeType: StoreType.unmannedStore,
         mainPrice: 4.50,
         strikethroughPrice: 5.25,
         isFeatured: true,
@@ -114,7 +114,7 @@ class MockDataService {
 
   static List<Store> getStores() {
     return [
-      // Unmanned stores only (retail stores excluded from main app)
+      // 无人门店 (Unmanned Stores)
       Store(
         id: '1',
         name: 'Via Nassa 店',
@@ -122,7 +122,7 @@ class MockDataService {
         address: 'Via Nassa 5, 6900 Lugano',
         latitude: 46.0037,
         longitude: 8.9511,
-        type: StoreType.unmanned,
+        type: StoreType.unmannedStore,
       ),
       Store(
         id: '3',
@@ -131,7 +131,7 @@ class MockDataService {
         address: 'Piazza Riforma 1, 6900 Lugano',
         latitude: 46.0049,
         longitude: 8.9517,
-        type: StoreType.unmanned,
+        type: StoreType.unmannedStore,
       ),
       Store(
         id: '4',
@@ -140,7 +140,7 @@ class MockDataService {
         address: 'Via Pretorio 15, 6900 Lugano',
         latitude: 46.0058,
         longitude: 8.9489,
-        type: StoreType.unmanned,
+        type: StoreType.unmannedStore,
       ),
       Store(
         id: '5',
@@ -149,7 +149,7 @@ class MockDataService {
         address: 'Corso Pestalozzi 8, 6900 Lugano',
         latitude: 46.0071,
         longitude: 8.9523,
-        type: StoreType.unmanned,
+        type: StoreType.unmannedStore,
       ),
       Store(
         id: '6',
@@ -158,9 +158,19 @@ class MockDataService {
         address: 'Via Cattedrale 3, 6900 Lugano',
         latitude: 46.0043,
         longitude: 8.9503,
-        type: StoreType.unmanned,
+        type: StoreType.unmannedStore,
       ),
-      // Retail stores (only accessible through mini-app)
+      // 无人仓店 (Unmanned Warehouse Stores)
+      Store(
+        id: '7',
+        name: 'Lugano Warehouse',
+        city: '卢加诺',
+        address: 'Via Industria 10, 6900 Lugano',
+        latitude: 46.0025,
+        longitude: 8.9480,
+        type: StoreType.unmannedWarehouse,
+      ),
+      // 展销商店 (Exhibition Stores)
       Store(
         id: '2',
         name: 'Centro 店',
@@ -168,7 +178,26 @@ class MockDataService {
         address: 'Via Centro 12, 6900 Lugano',
         latitude: 46.0067,
         longitude: 8.9541,
-        type: StoreType.retail,
+        type: StoreType.exhibitionStore,
+      ),
+      Store(
+        id: '8',
+        name: 'Lugano Exhibition Center',
+        city: '卢加诺',
+        address: 'Piazza Cioccaro 1, 6900 Lugano',
+        latitude: 46.0055,
+        longitude: 8.9530,
+        type: StoreType.exhibitionStore,
+      ),
+      // 展销商城 (Exhibition Malls)
+      Store(
+        id: '9',
+        name: 'Lugano Mall',
+        city: '卢加诺',
+        address: 'Via San Gottardo 20, 6900 Lugano',
+        latitude: 46.0080,
+        longitude: 8.9560,
+        type: StoreType.exhibitionMall,
       ),
     ];
   }
@@ -193,10 +222,12 @@ class MockDataService {
 
   // Get categories by store type
   static List<Category> getCategoriesByStoreType(StoreType storeType) {
-    return getCategories().where((category) => 
+    return getCategories().where((category) =>
       category.storeTypeAssociation == StoreTypeAssociation.all ||
-      (storeType == StoreType.retail && category.storeTypeAssociation == StoreTypeAssociation.retail) ||
-      (storeType == StoreType.unmanned && category.storeTypeAssociation == StoreTypeAssociation.unmanned)
+      ((storeType == StoreType.exhibitionStore || storeType == StoreType.exhibitionMall) &&
+       category.storeTypeAssociation == StoreTypeAssociation.retail) ||
+      ((storeType == StoreType.unmannedStore || storeType == StoreType.unmannedWarehouse) &&
+       category.storeTypeAssociation == StoreTypeAssociation.unmanned)
     ).toList();
   }
 
@@ -205,13 +236,42 @@ class MockDataService {
     return getProducts().where((product) => product.isFeatured).toList();
   }
 
-  // Get only unmanned stores (for main app location features)
-  static List<Store> getUnmannedStores() {
-    return getStores().where((store) => store.type == StoreType.unmanned).toList();
+  // Get all stores (for map display)
+  static List<Store> getAllStores() {
+    return getStores();
   }
 
-  // Get only retail stores (for mini-app only)
-  static List<Store> getRetailStores() {
-    return getStores().where((store) => store.type == StoreType.retail).toList();
+  // Get stores by mini-app type
+  static List<Store> getStoresByMiniApp(String miniAppType) {
+    switch (miniAppType) {
+      case 'UnmannedStore':
+        return getStores().where((store) =>
+          store.type == StoreType.unmannedStore ||
+          store.type == StoreType.unmannedWarehouse
+        ).toList();
+      case 'ExhibitionSales':
+        return getStores().where((store) =>
+          store.type == StoreType.exhibitionStore ||
+          store.type == StoreType.exhibitionMall
+        ).toList();
+      default:
+        return [];
+    }
+  }
+
+  // Get only unmanned stores (for main app location features)
+  static List<Store> getUnmannedStores() {
+    return getStores().where((store) =>
+      store.type == StoreType.unmannedStore ||
+      store.type == StoreType.unmannedWarehouse
+    ).toList();
+  }
+
+  // Get only exhibition stores (for mini-app only)
+  static List<Store> getExhibitionStores() {
+    return getStores().where((store) =>
+      store.type == StoreType.exhibitionStore ||
+      store.type == StoreType.exhibitionMall
+    ).toList();
   }
 }

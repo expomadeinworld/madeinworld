@@ -55,7 +55,7 @@ class StorageService {
           address: storeAddress,
           latitude: storeLat,
           longitude: storeLng,
-          type: StoreType.unmanned, // Main stores are always unmanned
+          type: StoreType.unmannedStore, // Main stores are always unmanned stores
         );
         
         debugPrint('Main store loaded: ${store.name}');

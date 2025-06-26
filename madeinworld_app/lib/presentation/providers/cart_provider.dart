@@ -27,7 +27,7 @@ class CartProvider extends ChangeNotifier {
         descriptionShort: '',
         descriptionLong: '',
         manufacturerId: '',
-        storeType: StoreType.retail,
+        storeType: StoreType.exhibitionStore,
         mainPrice: 0,
         imageUrls: [],
         categoryIds: [],

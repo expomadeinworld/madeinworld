@@ -8,6 +8,8 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/models/category.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/product.dart';
+import '../../../../data/models/store.dart';
+
 import '../../../../core/enums/store_type.dart';
 import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
@@ -275,11 +277,13 @@ class _ProductsTab extends StatefulWidget {
 }
 
 class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver {
-  String? _selectedCategoryId;
+  String? _selectedCategoryId = 'featured'; // Default to featured/推荐
   String? _selectedSubcategoryId;
+  Store? _selectedStore; // Selected store for location-based categories
   final ApiService _apiService = ApiService();
   late Future<List<Category>> _categoriesFuture;
   late Future<List<Product>> _productsFuture;
+  late Future<List<Store>> _storesFuture;
   Timer? _refreshTimer;
 
   @override
@@ -287,8 +291,33 @@ class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver
     super.initState();
     // Add lifecycle observer for automatic foreground refresh
     WidgetsBinding.instance.addObserver(this);
+    // Initialize stores future
+    _storesFuture = _loadStores();
     // Start periodic refresh timer (every 30 seconds)
     _startPeriodicRefresh();
+  }
+
+  Future<List<Store>> _loadStores() async {
+    try {
+      // Get unmanned stores from API using mini_app_type filter
+      final stores = await _apiService.fetchStores();
+      // Filter for unmanned stores (无人门店 and 无人仓店)
+      final unmannedStores = stores.where((store) =>
+        store.type == StoreType.unmannedStore ||
+        store.type == StoreType.unmannedWarehouse
+      ).toList();
+
+      if (unmannedStores.isNotEmpty && _selectedStore == null) {
+        // Auto-select first store if none selected
+        setState(() {
+          _selectedStore = unmannedStores.first;
+        });
+      }
+      return unmannedStores;
+    } catch (e) {
+      debugPrint('Error loading stores: $e');
+      return [];
+    }
   }
 
   @override
@@ -333,13 +362,13 @@ class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver
 
     setState(() {
       _categoriesFuture = _apiService.fetchCategoriesWithFilters(
-        storeType: StoreType.unmanned,
+        storeType: StoreType.unmannedStore,
         miniAppType: MiniAppType.unmannedStore,
         includeSubcategories: true,
       );
       // Pass the storeId to the products fetch call
       _productsFuture = _apiService.fetchProducts(
-        storeType: StoreType.unmanned,
+        storeType: StoreType.unmannedStore,
         storeId: storeId,
       );
     });
@@ -432,6 +461,59 @@ class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver
             color: AppColors.themeRed,
             child: Column(
               children: [
+                // Store Selector
+                FutureBuilder<List<Store>>(
+                  future: _storesFuture,
+                  builder: (context, storeSnapshot) {
+                    if (storeSnapshot.hasData && storeSnapshot.data!.isNotEmpty) {
+                      final stores = storeSnapshot.data!;
+                      return Container(
+                        height: 50,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            Icon(Icons.store, color: AppColors.themeRed, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              '选择门店:',
+                              style: AppTextStyles.body.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primaryText,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButton<Store>(
+                                value: _selectedStore,
+                                isExpanded: true,
+                                underline: Container(),
+                                items: stores.map((store) {
+                                  return DropdownMenuItem<Store>(
+                                    value: store,
+                                    child: Text(
+                                      '${store.name} (${store.city})',
+                                      style: AppTextStyles.bodySmall,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (Store? newStore) {
+                                  setState(() {
+                                    _selectedStore = newStore;
+                                    // Reset category selection when store changes
+                                    _selectedCategoryId = 'featured';
+                                    _selectedSubcategoryId = null;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
                 // Categories
                 Container(
                   height: 60,
@@ -444,15 +526,15 @@ class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver
                     if (index == 0) {
                       return CategoryChip(
                         category: Category(
-                          id: '',
-                          name: '全部',
+                          id: 'featured',
+                          name: '推荐',
                           storeTypeAssociation: StoreTypeAssociation.all,
                           miniAppAssociation: [],
                         ),
-                        isSelected: _selectedCategoryId == null,
+                        isSelected: _selectedCategoryId == null || _selectedCategoryId == 'featured',
                         onTap: () {
                           setState(() {
-                            _selectedCategoryId = null;
+                            _selectedCategoryId = 'featured';
                             _selectedSubcategoryId = null;
                           });
                         },
@@ -496,7 +578,7 @@ class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver
                               return Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: FilterChip(
-                                  label: const Text('全部'),
+                                  label: const Text('推荐'),
                                   selected: _selectedSubcategoryId == null,
                                   onSelected: (selected) {
                                     setState(() {

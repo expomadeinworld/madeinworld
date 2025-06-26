@@ -78,8 +78,8 @@ class ProductCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               
-              // FIX: Stock Info (only for unmanned stores)
-              if (product.storeType == StoreType.unmanned) ...[
+              // FIX: Stock Info (only for unmanned stores and warehouses)
+              if (product.storeType == StoreType.unmannedStore || product.storeType == StoreType.unmannedWarehouse) ...[
                 SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 4)),
                 Text(
                   '剩余 ${product.displayStock ?? 0} 件', // Use ?? 0 to handle null gracefully

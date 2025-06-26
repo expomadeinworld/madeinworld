@@ -1,15 +1,18 @@
 import 'dart:math' as math;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/navigation/custom_page_transitions.dart';
 import '../../../core/utils/responsive_utils.dart';
 import '../../../data/models/store.dart';
-import '../../../data/services/mock_data_service.dart';
+import '../../../data/services/api_service.dart';
+import '../../../core/enums/store_type.dart';
 import '../../providers/location_provider.dart';
 import 'main_screen.dart';
 
@@ -26,10 +29,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchVisible = false;
   Store? _selectedStore;
+  final ApiService _apiService = ApiService();
+  late Future<List<Store>> _storesFuture;
 
   @override
   void initState() {
     super.initState();
+    _storesFuture = _apiService.fetchStores(); // Load all stores from API
   }
 
   @override
@@ -46,6 +52,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
         children: [
           // Full-screen map
           _buildFullScreenMap(),
+
+          // Map Legend
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            right: 16,
+            child: _buildMapLegend(),
+          ),
 
           // Floating search bar
           if (_isSearchVisible) _buildFloatingSearchBar(),
@@ -64,20 +77,82 @@ class _LocationsScreenState extends State<LocationsScreen> {
     return Consumer<LocationProvider>(
       builder: (context, locationProvider, child) {
         final userPosition = locationProvider.currentPosition;
-        final stores = MockDataService.getUnmannedStores();
 
-        // Create markers for unmanned stores
-        final markers = <Marker>{};
+        return FutureBuilder<List<Store>>(
+          future: _storesFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.themeRed,
+                ),
+              );
+            }
 
-        // Add store markers with custom styling
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '加载门店失败',
+                      style: AppTextStyles.responsiveBody(context),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _storesFuture = _apiService.fetchStores();
+                        });
+                      },
+                      child: const Text('重试'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final stores = snapshot.data ?? [];
+            if (stores.isEmpty) {
+              return const Center(
+                child: Text('暂无门店数据'),
+              );
+            }
+
+            // Create markers for all stores with color coding
+            final markers = <Marker>{};
+
+        // Add store markers with color-coded styling based on store type
         for (final store in stores) {
+          // Determine marker color based on store type
+          double hue;
+          switch (store.type) {
+            case StoreType.unmannedStore:
+              hue = BitmapDescriptor.hueBlue; // Blue for unmanned stores
+              break;
+            case StoreType.unmannedWarehouse:
+              hue = BitmapDescriptor.hueAzure; // Light blue for unmanned warehouses
+              break;
+            case StoreType.exhibitionStore:
+              hue = BitmapDescriptor.hueViolet; // Purple for exhibition stores
+              break;
+            case StoreType.exhibitionMall:
+              hue = BitmapDescriptor.hueMagenta; // Magenta for exhibition malls
+              break;
+          }
+
           markers.add(
             Marker(
               markerId: MarkerId(store.id),
               position: LatLng(store.latitude, store.longitude),
-              // Remove info window completely - only show bottom sheet
               infoWindow: InfoWindow.noText,
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+              icon: BitmapDescriptor.defaultMarkerWithHue(hue),
               onTap: () {
                 setState(() {
                   _selectedStore = store;
@@ -87,18 +162,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
           );
         }
 
-        // Add user location marker if available
-        if (userPosition != null) {
-          markers.add(
-            Marker(
-              markerId: const MarkerId('user_location'),
-              position: LatLng(userPosition.latitude, userPosition.longitude),
-              // Remove info window - user location is shown by blue dot
-              infoWindow: InfoWindow.noText,
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-            ),
-          );
-        }
+        // Note: User location pin removed as per requirements
 
         // Default camera position (Lugano, Switzerland)
         const defaultPosition = CameraPosition(
@@ -152,6 +216,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
             // Optional: Handle camera movement for real-time updates
           },
         );
+          },
+        );
       },
     );
   }
@@ -200,6 +266,66 @@ class _LocationsScreenState extends State<LocationsScreen> {
         ),
       );
     });
+  }
+
+  Widget _buildMapLegend() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '店铺类型',
+            style: AppTextStyles.cardTitle.copyWith(
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildLegendItem('无人门店', Colors.blue),
+          _buildLegendItem('无人仓店', Colors.lightBlue),
+          _buildLegendItem('展销商店', Colors.purple),
+          _buildLegendItem('展销商城', Colors.pinkAccent),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTopControls() {
@@ -369,29 +495,34 @@ class _LocationsScreenState extends State<LocationsScreen> {
       return;
     }
 
-    final stores = MockDataService.getUnmannedStores();
-    final matchingStores = stores.where((store) =>
-      store.name.toLowerCase().contains(query.toLowerCase()) ||
-      store.address.toLowerCase().contains(query.toLowerCase())
-    ).toList();
+    // Search within the loaded stores from the API
+    _storesFuture.then((stores) {
+      final matchingStores = stores.where((store) =>
+        store.name.toLowerCase().contains(query.toLowerCase()) ||
+        store.address.toLowerCase().contains(query.toLowerCase())
+      ).toList();
 
-    if (matchingStores.isNotEmpty) {
-      // Focus map on first matching store
-      final firstMatch = matchingStores.first;
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: LatLng(firstMatch.latitude, firstMatch.longitude),
-            zoom: 16.0,
+      if (matchingStores.isNotEmpty) {
+        // Focus map on first matching store
+        final firstMatch = matchingStores.first;
+        _mapController?.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: LatLng(firstMatch.latitude, firstMatch.longitude),
+              zoom: 16.0,
+            ),
           ),
-        ),
-      );
+        );
 
-      // Show store details for first match
-      setState(() {
-        _selectedStore = firstMatch;
-      });
-    }
+        // Show store details for first match
+        setState(() {
+          _selectedStore = firstMatch;
+        });
+      }
+    }).catchError((error) {
+      // Handle search error silently
+      debugPrint('Search error: $error');
+    });
   }
 
   Widget _buildStoreDetailsSheet() {
@@ -621,10 +752,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
                                 flex: 2,
                                 child: ElevatedButton.icon(
                                   onPressed: () {
-                                    _setAsMainStore(_selectedStore!);
+                                    _navigateToStore(_selectedStore!);
                                   },
-                                  icon: const Icon(Icons.home),
-                                  label: const Text('设置为主店'),
+                                  icon: const Icon(Icons.navigation),
+                                  label: const Text('导航'),
                                   style: ElevatedButton.styleFrom(
                                     padding: EdgeInsets.symmetric(
                                       vertical: ResponsiveUtils.getResponsiveSpacing(context, 14),
@@ -649,25 +780,56 @@ class _LocationsScreenState extends State<LocationsScreen> {
     );
   }
 
-  // Set selected store as main store for order pickup
-  void _setAsMainStore(Store store) {
-    // Update the location provider with the selected main store
-    final locationProvider = context.read<LocationProvider>();
-    locationProvider.setMainStore(store);
+  // Navigate to selected store using external maps app
+  void _navigateToStore(Store store) async {
+    try {
+      // Create platform-specific URLs for better integration
+      Uri url;
 
-    // Show confirmation
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('已设置 ${store.name} 为主店'),
-        backgroundColor: AppColors.themeRed,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      if (Platform.isIOS) {
+        // Use Apple Maps on iOS
+        url = Uri.parse('http://maps.apple.com/?q=${store.latitude},${store.longitude}');
+      } else {
+        // Use Google Maps on Android and other platforms
+        url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${store.latitude},${store.longitude}');
+      }
 
-    // Close store details
-    setState(() {
-      _selectedStore = null;
-    });
+      // Try to launch the URL
+      if (await canLaunchUrl(url)) {
+        await launchUrl(
+          url,
+          mode: LaunchMode.externalApplication, // Open in external app
+        );
+
+        // Close store details after successful launch
+        setState(() {
+          _selectedStore = null;
+        });
+      } else {
+        // Fallback: show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('无法打开地图应用'),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Handle any errors
+      debugPrint('Error launching maps: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导航失败: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   void _centerOnUserLocation() async {

@@ -11,9 +11,10 @@ import (
 type StoreType string
 
 const (
-	StoreTypeRetail    StoreType = "retail"
-	StoreTypeUnmanned  StoreType = "unmanned"
-	StoreTypeWarehouse StoreType = "warehouse"
+	StoreTypeUnmannedStore     StoreType = "无人门店"
+	StoreTypeUnmannedWarehouse StoreType = "无人仓店"
+	StoreTypeExhibitionStore   StoreType = "展销商店"
+	StoreTypeExhibitionMall    StoreType = "展销商城"
 )
 
 // MiniAppType represents the type of mini-app
@@ -72,23 +73,24 @@ func (a *MiniAppTypeArray) Scan(value interface{}) error {
 
 // Product represents a product in the catalog
 type Product struct {
-	ID                 int       `json:"id" db:"product_id"`
-	SKU                string    `json:"sku" db:"sku"`
-	Title              string    `json:"title" db:"title"`
-	DescriptionShort   string    `json:"description_short" db:"description_short"`
-	DescriptionLong    string    `json:"description_long" db:"description_long"`
-	ManufacturerID     int       `json:"manufacturer_id" db:"manufacturer_id"`
-	StoreType          StoreType `json:"store_type" db:"store_type"`
-	MainPrice          float64   `json:"main_price" db:"main_price"`
-	StrikethroughPrice *float64  `json:"strikethrough_price" db:"strikethrough_price"`
-	IsActive           bool      `json:"is_active" db:"is_active"`
-	IsFeatured         bool      `json:"is_featured" db:"is_featured"`
-	ImageUrls          []string  `json:"image_urls"`
-	CategoryIds        []string  `json:"category_ids"`
-	SubcategoryIds     []string  `json:"subcategory_ids"`
-	StockQuantity      *int      `json:"stock_quantity"`
-	CreatedAt          time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at" db:"updated_at"`
+	ID                 int         `json:"id" db:"product_id"`
+	SKU                string      `json:"sku" db:"sku"`
+	Title              string      `json:"title" db:"title"`
+	DescriptionShort   string      `json:"description_short" db:"description_short"`
+	DescriptionLong    string      `json:"description_long" db:"description_long"`
+	ManufacturerID     int         `json:"manufacturer_id" db:"manufacturer_id"`
+	StoreType          StoreType   `json:"store_type" db:"store_type"`
+	MiniAppType        MiniAppType `json:"mini_app_type" db:"mini_app_type"`
+	MainPrice          float64     `json:"main_price" db:"main_price"`
+	StrikethroughPrice *float64    `json:"strikethrough_price" db:"strikethrough_price"`
+	IsActive           bool        `json:"is_active" db:"is_active"`
+	IsFeatured         bool        `json:"is_featured" db:"is_featured"`
+	ImageUrls          []string    `json:"image_urls"`
+	CategoryIds        []string    `json:"category_ids"`
+	SubcategoryIds     []string    `json:"subcategory_ids"`
+	StockQuantity      *int        `json:"stock_quantity"`
+	CreatedAt          time.Time   `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time   `json:"updated_at" db:"updated_at"`
 }
 
 // DisplayStock returns the stock quantity with buffer applied (actual - 5)
@@ -105,9 +107,11 @@ func (p *Product) DisplayStock() *int {
 
 // HasStock returns true if the product has stock available
 func (p *Product) HasStock() bool {
-	if p.StoreType == StoreTypeRetail {
-		return true // Retail always has stock
+	// For exhibition stores and malls, always show as having stock
+	if p.StoreType == StoreTypeExhibitionStore || p.StoreType == StoreTypeExhibitionMall {
+		return true
 	}
+	// For unmanned stores and warehouses, check actual stock
 	displayStock := p.DisplayStock()
 	return displayStock != nil && *displayStock > 0
 }
@@ -118,9 +122,17 @@ type Category struct {
 	Name                 string           `json:"name" db:"name"`
 	StoreTypeAssociation string           `json:"store_type_association" db:"store_type_association"`
 	MiniAppAssociation   MiniAppTypeArray `json:"mini_app_association" db:"mini_app_association"`
+	StoreID              *int             `json:"store_id" db:"store_id"`
+	IsActive             bool             `json:"is_active" db:"is_active"`
 	Subcategories        []Subcategory    `json:"subcategories,omitempty"`
-	CreatedAt            time.Time        `json:"created_at" db:"created_at"`
-	UpdatedAt            time.Time        `json:"updated_at" db:"updated_at"`
+	// Store information (populated when store_id is not null)
+	StoreName      *string    `json:"store_name,omitempty"`
+	StoreCity      *string    `json:"store_city,omitempty"`
+	StoreLatitude  *float64   `json:"store_latitude,omitempty"`
+	StoreLongitude *float64   `json:"store_longitude,omitempty"`
+	StoreType      *StoreType `json:"store_type,omitempty"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // Subcategory represents a product subcategory
@@ -144,6 +156,7 @@ type Store struct {
 	Latitude  float64   `json:"latitude" db:"latitude"`
 	Longitude float64   `json:"longitude" db:"longitude"`
 	Type      StoreType `json:"type" db:"type"`
+	ImageURL  *string   `json:"image_url" db:"image_url"`
 	IsActive  bool      `json:"is_active" db:"is_active"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`

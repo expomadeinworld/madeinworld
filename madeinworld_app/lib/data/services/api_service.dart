@@ -34,7 +34,7 @@ class ApiService {
       final Map<String, String> queryParams = {};
 
       if (storeType != null) {
-        queryParams['store_type'] = storeType.toString().split('.').last;
+        queryParams['store_type'] = storeType.apiValue;
       }
 
       if (featured != null) {
@@ -138,7 +138,7 @@ class ApiService {
       // Build query parameters
       final Map<String, String> queryParams = {};
       if (storeType != null) {
-        queryParams['store_type'] = storeType.toString().split('.').last;
+        queryParams['store_type'] = storeType.apiValue;
       }
 
       // Build URI using the CORRECT base URL from ApiConfig
@@ -184,7 +184,7 @@ class ApiService {
       // Build query parameters
       final Map<String, String> queryParams = {};
       if (storeType != null) {
-        queryParams['type'] = storeType.toString().split('.').last;
+        queryParams['type'] = storeType.apiValue;
       }
 
       // Build URI using the CORRECT base URL from ApiConfig
@@ -282,7 +282,7 @@ class ApiService {
       final Map<String, String> queryParams = {};
 
       if (storeType != null) {
-        queryParams['store_type'] = storeType.toString().split('.').last;
+        queryParams['store_type'] = storeType.apiValue;
       }
 
       if (miniAppType != null) {
