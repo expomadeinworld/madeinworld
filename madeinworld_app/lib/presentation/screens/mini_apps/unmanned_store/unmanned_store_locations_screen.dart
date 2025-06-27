@@ -38,7 +38,6 @@ class _UnmannedStoreLocationsScreenState extends State<UnmannedStoreLocationsScr
 
   // Cache for custom markers
   final Map<StoreType, BitmapDescriptor> _markerCache = {};
-  BitmapDescriptor? _userLocationMarker;
 
   @override
   void initState() {
@@ -52,7 +51,6 @@ class _UnmannedStoreLocationsScreenState extends State<UnmannedStoreLocationsScr
     for (final storeType in [StoreType.unmannedStore, StoreType.unmannedWarehouse]) {
       _markerCache[storeType] = await MapMarkerUtils.getStoreMarkerIcon(storeType);
     }
-    _userLocationMarker = await MapMarkerUtils.createUserLocationMarker();
     if (mounted) setState(() {});
   }
 
@@ -196,19 +194,19 @@ class _UnmannedStoreLocationsScreenState extends State<UnmannedStoreLocationsScr
         }
 
         // Add user location marker if available
-        if (userPosition != null && _userLocationMarker != null) {
-          markers.add(
-            Marker(
-              markerId: const MarkerId('user_location'),
-              position: LatLng(userPosition.latitude, userPosition.longitude),
-              icon: _userLocationMarker!,
-              infoWindow: const InfoWindow(
-                title: '我的位置',
-                snippet: '当前位置',
-              ),
-            ),
-          );
-        }
+        // if (userPosition != null && _userLocationMarker != null) {
+        //   markers.add(
+        //     Marker(
+        //       markerId: const MarkerId('user_location'),
+        //       position: LatLng(userPosition.latitude, userPosition.longitude),
+        //       icon: _userLocationMarker!,
+        //       infoWindow: const InfoWindow(
+        //         title: '我的位置',
+        //         snippet: '当前位置',
+        //       ),
+        //     ),
+        //   );
+        // }
 
         return GoogleMap(
           onMapCreated: (GoogleMapController controller) {
@@ -227,9 +225,9 @@ class _UnmannedStoreLocationsScreenState extends State<UnmannedStoreLocationsScr
             zoom: 12.0,
           ),
           markers: markers,
-          myLocationEnabled: false, // We handle location manually
+          myLocationEnabled: true, // We handle location manually
           myLocationButtonEnabled: false, // We have custom location button
-          zoomControlsEnabled: false, // We have custom controls
+          zoomControlsEnabled: true, // We have custom controls
           mapToolbarEnabled: false,
           onTap: (LatLng position) {
             // Hide store details when tapping on map

@@ -478,7 +478,7 @@ func (h *Handler) GetCategories(c *gin.Context) {
 		query = `
             SELECT
                 c.category_id, c.name, c.store_type_association, c.mini_app_association,
-                c.store_id, c.is_active, c.created_at, c.updated_at,
+                c.store_id, c.display_order, c.is_active, c.created_at, c.updated_at,
                 s.name as store_name, s.city as store_city, s.latitude as store_latitude,
                 s.longitude as store_longitude, s.type as store_type
             FROM product_categories c
@@ -488,7 +488,7 @@ func (h *Handler) GetCategories(c *gin.Context) {
 		query = `
             SELECT
                 category_id, name, store_type_association, mini_app_association,
-                store_id, is_active, created_at, updated_at
+                store_id, display_order, is_active, created_at, updated_at
             FROM product_categories
         `
 	}
@@ -533,9 +533,9 @@ func (h *Handler) GetCategories(c *gin.Context) {
 	}
 
 	if includeStoreInfo {
-		query += " ORDER BY c.category_id"
+		query += " ORDER BY c.display_order, c.category_id"
 	} else {
-		query += " ORDER BY category_id"
+		query += " ORDER BY display_order, category_id"
 	}
 
 	rows, err := h.db.Pool.Query(ctx, query, args...)
@@ -558,6 +558,7 @@ func (h *Handler) GetCategories(c *gin.Context) {
 				&category.StoreTypeAssociation,
 				&category.MiniAppAssociation,
 				&category.StoreID,
+				&category.DisplayOrder,
 				&category.IsActive,
 				&category.CreatedAt,
 				&category.UpdatedAt,
@@ -579,6 +580,7 @@ func (h *Handler) GetCategories(c *gin.Context) {
 				&category.StoreTypeAssociation,
 				&category.MiniAppAssociation,
 				&category.StoreID,
+				&category.DisplayOrder,
 				&category.IsActive,
 				&category.CreatedAt,
 				&category.UpdatedAt,
@@ -1009,6 +1011,37 @@ func (h *Handler) CreateSubcategory(c *gin.Context) {
 	// Set the parent category ID from URL parameter
 	newSubcategory.ParentCategoryID, _ = strconv.Atoi(categoryID)
 
+	// Validate display order
+	if newSubcategory.DisplayOrder < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Display order must be at least 1"})
+		return
+	}
+
+	// Check for display order conflicts within the same category
+	conflictQuery := `
+        SELECT COUNT(*) FROM subcategories
+        WHERE display_order = $1
+        AND parent_category_id = $2
+        AND is_active = true
+    `
+
+	var conflictCount int
+	err := h.db.Pool.QueryRow(ctx, conflictQuery,
+		newSubcategory.DisplayOrder,
+		newSubcategory.ParentCategoryID,
+	).Scan(&conflictCount)
+
+	if err != nil {
+		log.Printf("Failed to check display order conflict: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate display order"})
+		return
+	}
+
+	if conflictCount > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Display order already exists for this category"})
+		return
+	}
+
 	query := `
         INSERT INTO subcategories (parent_category_id, name, image_url, display_order, is_active)
         VALUES ($1, $2, $3, $4, $5)
@@ -1017,7 +1050,7 @@ func (h *Handler) CreateSubcategory(c *gin.Context) {
 
 	var subcategoryID int
 	var createdAt, updatedAt time.Time
-	err := h.db.Pool.QueryRow(ctx, query,
+	err = h.db.Pool.QueryRow(ctx, query,
 		newSubcategory.ParentCategoryID,
 		newSubcategory.Name,
 		newSubcategory.ImageURL,
@@ -1051,6 +1084,48 @@ func (h *Handler) UpdateSubcategory(c *gin.Context) {
 		return
 	}
 
+	// Validate display order
+	if updatedSubcategory.DisplayOrder < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Display order must be at least 1"})
+		return
+	}
+
+	// Get the parent category ID for the subcategory being updated
+	var parentCategoryID int
+	err := h.db.Pool.QueryRow(ctx, "SELECT parent_category_id FROM subcategories WHERE subcategory_id = $1", subcategoryID).Scan(&parentCategoryID)
+	if err != nil {
+		log.Printf("Failed to get parent category ID: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate subcategory"})
+		return
+	}
+
+	// Check for display order conflicts within the same category (excluding current subcategory)
+	conflictQuery := `
+        SELECT COUNT(*) FROM subcategories
+        WHERE display_order = $1
+        AND parent_category_id = $2
+        AND subcategory_id != $3
+        AND is_active = true
+    `
+
+	var conflictCount int
+	err = h.db.Pool.QueryRow(ctx, conflictQuery,
+		updatedSubcategory.DisplayOrder,
+		parentCategoryID,
+		subcategoryID,
+	).Scan(&conflictCount)
+
+	if err != nil {
+		log.Printf("Failed to check display order conflict: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate display order"})
+		return
+	}
+
+	if conflictCount > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Display order already exists for this category"})
+		return
+	}
+
 	query := `
         UPDATE subcategories
         SET name = $2, image_url = $3, display_order = $4, is_active = $5, updated_at = CURRENT_TIMESTAMP
@@ -1059,7 +1134,7 @@ func (h *Handler) UpdateSubcategory(c *gin.Context) {
     `
 
 	var updatedAt time.Time
-	err := h.db.Pool.QueryRow(ctx, query,
+	err = h.db.Pool.QueryRow(ctx, query,
 		subcategoryID,
 		updatedSubcategory.Name,
 		updatedSubcategory.ImageURL,
@@ -1112,19 +1187,69 @@ func (h *Handler) CreateCategory(c *gin.Context) {
 		return
 	}
 
+	// Validate display order
+	if newCategory.DisplayOrder < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Display order must be at least 1"})
+		return
+	}
+
+	// Check for display order conflicts within the same scope (mini-app type and store)
+	var conflictQuery string
+	var conflictCount int
+	var err error
+
+	if newCategory.StoreID == nil {
+		conflictQuery = `
+            SELECT COUNT(*) FROM product_categories
+            WHERE display_order = $1
+            AND $2 = ANY(mini_app_association)
+            AND store_id IS NULL
+            AND is_active = true
+        `
+		err = h.db.Pool.QueryRow(ctx, conflictQuery,
+			newCategory.DisplayOrder,
+			newCategory.MiniAppAssociation[0],
+		).Scan(&conflictCount)
+	} else {
+		conflictQuery = `
+            SELECT COUNT(*) FROM product_categories
+            WHERE display_order = $1
+            AND $2 = ANY(mini_app_association)
+            AND store_id = $3
+            AND is_active = true
+        `
+		err = h.db.Pool.QueryRow(ctx, conflictQuery,
+			newCategory.DisplayOrder,
+			newCategory.MiniAppAssociation[0],
+			*newCategory.StoreID,
+		).Scan(&conflictCount)
+	}
+
+	if err != nil {
+		log.Printf("Failed to check display order conflict: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate display order"})
+		return
+	}
+
+	if conflictCount > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Display order already exists for this mini-app and store scope"})
+		return
+	}
+
 	query := `
-        INSERT INTO product_categories (name, store_type_association, mini_app_association, store_id, is_active)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO product_categories (name, store_type_association, mini_app_association, store_id, display_order, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING category_id, created_at, updated_at
     `
 
 	var categoryID int
 	var createdAt, updatedAt time.Time
-	err := h.db.Pool.QueryRow(ctx, query,
+	err = h.db.Pool.QueryRow(ctx, query,
 		newCategory.Name,
 		newCategory.StoreTypeAssociation,
 		newCategory.MiniAppAssociation,
 		newCategory.StoreID,
+		newCategory.DisplayOrder,
 		newCategory.IsActive,
 	).Scan(&categoryID, &createdAt, &updatedAt)
 
@@ -1154,20 +1279,74 @@ func (h *Handler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
+	// Validate display order
+	if updatedCategory.DisplayOrder < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Display order must be at least 1"})
+		return
+	}
+
+	// Check for display order conflicts within the same scope (excluding current category)
+	var conflictQuery string
+	var conflictCount int
+	var err error
+
+	if updatedCategory.StoreID == nil {
+		conflictQuery = `
+            SELECT COUNT(*) FROM product_categories
+            WHERE display_order = $1
+            AND $2 = ANY(mini_app_association)
+            AND store_id IS NULL
+            AND category_id != $3
+            AND is_active = true
+        `
+		err = h.db.Pool.QueryRow(ctx, conflictQuery,
+			updatedCategory.DisplayOrder,
+			updatedCategory.MiniAppAssociation[0],
+			categoryID,
+		).Scan(&conflictCount)
+	} else {
+		conflictQuery = `
+            SELECT COUNT(*) FROM product_categories
+            WHERE display_order = $1
+            AND $2 = ANY(mini_app_association)
+            AND store_id = $3
+            AND category_id != $4
+            AND is_active = true
+        `
+		err = h.db.Pool.QueryRow(ctx, conflictQuery,
+			updatedCategory.DisplayOrder,
+			updatedCategory.MiniAppAssociation[0],
+			*updatedCategory.StoreID,
+			categoryID,
+		).Scan(&conflictCount)
+	}
+
+	if err != nil {
+		log.Printf("Failed to check display order conflict: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate display order"})
+		return
+	}
+
+	if conflictCount > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Display order already exists for this mini-app and store scope"})
+		return
+	}
+
 	query := `
         UPDATE product_categories
-        SET name = $2, store_type_association = $3, mini_app_association = $4, store_id = $5, is_active = $6, updated_at = CURRENT_TIMESTAMP
+        SET name = $2, store_type_association = $3, mini_app_association = $4, store_id = $5, display_order = $6, is_active = $7, updated_at = CURRENT_TIMESTAMP
         WHERE category_id = $1
         RETURNING updated_at
     `
 
 	var updatedAt time.Time
-	err := h.db.Pool.QueryRow(ctx, query,
+	err = h.db.Pool.QueryRow(ctx, query,
 		categoryID,
 		updatedCategory.Name,
 		updatedCategory.StoreTypeAssociation,
 		updatedCategory.MiniAppAssociation,
 		updatedCategory.StoreID,
+		updatedCategory.DisplayOrder,
 		updatedCategory.IsActive,
 	).Scan(&updatedAt)
 

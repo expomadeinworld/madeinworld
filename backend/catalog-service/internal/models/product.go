@@ -123,6 +123,7 @@ type Category struct {
 	StoreTypeAssociation string           `json:"store_type_association" db:"store_type_association"`
 	MiniAppAssociation   MiniAppTypeArray `json:"mini_app_association" db:"mini_app_association"`
 	StoreID              *int             `json:"store_id" db:"store_id"`
+	DisplayOrder         int              `json:"display_order" db:"display_order"`
 	IsActive             bool             `json:"is_active" db:"is_active"`
 	Subcategories        []Subcategory    `json:"subcategories,omitempty"`
 	// Store information (populated when store_id is not null)

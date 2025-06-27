@@ -58,10 +58,10 @@ const StoreListPage = () => {
   });
 
   const storeTypeOptions = [
-    { value: '无人商店', label: '无人商店', color: '#1976d2', miniApp: '无人商店' },
-    { value: '无人仓店', label: '无人仓店', color: '#1565c0', miniApp: '无人商店' },
-    { value: '展销商店', label: '展销商店', color: '#7b1fa2', miniApp: '展销展消' },
-    { value: '展销商城', label: '展销商城', color: '#6a1b9a', miniApp: '展销展消' },
+    { value: '无人门店', label: '无人门店', color: '#2196f3', miniApp: '无人商店' },
+    { value: '无人仓店', label: '无人仓店', color: '#4caf50', miniApp: '无人商店' },
+    { value: '展销商店', label: '展销商店', color: '#ffd556', miniApp: '展销展消' },
+    { value: '展销商城', label: '展销商城', color: '#f38900', miniApp: '展销展消' },
   ];
 
   useEffect(() => {
@@ -264,12 +264,12 @@ const StoreListPage = () => {
                   <CardContent>
                     <Box display="flex" alignItems="center" mb={2}>
                       <Avatar
-                        src={store.image_url}
-                        sx={{ 
-                          width: 56, 
-                          height: 56, 
+                        src={store.image_url ? `http://localhost:8080${store.image_url}` : ''}
+                        sx={{
+                          width: 56,
+                          height: 56,
                           mr: 2,
-                          bgcolor: typeInfo.color 
+                          bgcolor: typeInfo.color
                         }}
                       >
                         <StoreIcon />

@@ -27,7 +27,7 @@ import {
   ListItemSecondaryAction,
   Tabs,
   Tab,
-  Divider,
+
   Avatar,
   Tooltip,
 } from '@mui/material';
@@ -64,14 +64,29 @@ const CategoryListPage = () => {
     name: '',
     mini_app_association: [],
     store_id: null,
+    display_order: 1,
     is_active: true,
   });
 
   const [subcategoryForm, setSubcategoryForm] = useState({
     name: '',
     image_url: '',
-    display_order: 0,
+    display_order: 1,
+    is_active: true,
   });
+  const [subcategoryImageFile, setSubcategoryImageFile] = useState(null);
+
+  // Store type color mapping for consistent color coding across admin panel
+  const storeTypeOptions = [
+    { value: '无人门店', label: '无人门店', color: '#2196f3', miniApp: '无人商店' },
+    { value: '无人仓店', label: '无人仓店', color: '#4caf50', miniApp: '无人商店' },
+    { value: '展销商店', label: '展销商店', color: '#ffd556', miniApp: '展销展消' },
+    { value: '展销商城', label: '展销商城', color: '#f38900', miniApp: '展销展消' },
+  ];
+
+  const getStoreTypeInfo = (type) => {
+    return storeTypeOptions.find(opt => opt.value === type) || { color: '#666', miniApp: 'Unknown' };
+  };
 
   const miniAppTabs = [
     {
@@ -178,6 +193,12 @@ const CategoryListPage = () => {
 
   const handleCreateCategory = async () => {
     try {
+      // Validate display order
+      if (categoryForm.display_order < 1) {
+        showToast('Display order must be at least 1', 'error');
+        return;
+      }
+
       const currentMiniApp = miniAppTabs[currentTab];
       const categoryData = {
         ...categoryForm,
@@ -200,7 +221,12 @@ const CategoryListPage = () => {
         resetCategoryForm();
         fetchCategories();
       } else {
-        showToast('Failed to create category', 'error');
+        const errorData = await response.json();
+        if (response.status === 409) {
+          showToast('Display order already exists. Please choose a different order.', 'error');
+        } else {
+          showToast(`Failed to create category: ${errorData.error || 'Unknown error'}`, 'error');
+        }
       }
     } catch (error) {
       console.error('Error creating category:', error);
@@ -210,6 +236,12 @@ const CategoryListPage = () => {
 
   const handleUpdateCategory = async () => {
     try {
+      // Validate display order
+      if (categoryForm.display_order < 1) {
+        showToast('Display order must be at least 1', 'error');
+        return;
+      }
+
       const currentMiniApp = miniAppTabs[currentTab];
       const categoryData = {
         ...categoryForm,
@@ -233,7 +265,12 @@ const CategoryListPage = () => {
         resetCategoryForm();
         fetchCategories();
       } else {
-        showToast('Failed to update category', 'error');
+        const errorData = await response.json();
+        if (response.status === 409) {
+          showToast('Display order already exists. Please choose a different order.', 'error');
+        } else {
+          showToast(`Failed to update category: ${errorData.error || 'Unknown error'}`, 'error');
+        }
       }
     } catch (error) {
       console.error('Error updating category:', error);
@@ -245,22 +282,52 @@ const CategoryListPage = () => {
 
   const handleCreateSubcategory = async () => {
     try {
+      // Validate display order
+      if (subcategoryForm.display_order < 1) {
+        showToast('Display order must be at least 1', 'error');
+        return;
+      }
+
+      let subcategoryData = { ...subcategoryForm };
+
+      // If there's an image file, we'll upload it after creating the subcategory
+      if (subcategoryImageFile) {
+        subcategoryData.image_url = ''; // Will be set after image upload
+      }
+
       const response = await fetch(`http://localhost:8080/api/v1/categories/${selectedCategoryForSubcategory.id}/subcategories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(subcategoryForm),
+        body: JSON.stringify(subcategoryData),
       });
 
       if (response.ok) {
+        const createdSubcategory = await response.json();
+
+        // Upload image if provided
+        if (subcategoryImageFile) {
+          await handleSubcategoryImageUpload(createdSubcategory.id, subcategoryImageFile);
+        }
+
         showToast('Subcategory created successfully', 'success');
         setOpenSubcategoryDialog(false);
-        setSubcategoryForm({ name: '', image_url: '', display_order: 0 });
+        setSubcategoryForm({ name: '', image_url: '', display_order: 1, is_active: true });
+        setSubcategoryImageFile(null);
         setSelectedCategoryForSubcategory(null);
-        fetchCategories();
+
+        // Add a small delay to ensure database consistency before refetching
+        setTimeout(() => {
+          fetchCategories();
+        }, 100);
       } else {
-        showToast('Failed to create subcategory', 'error');
+        const errorData = await response.json();
+        if (response.status === 409) {
+          showToast('Display order already exists. Please choose a different order.', 'error');
+        } else {
+          showToast(`Failed to create subcategory: ${errorData.error || 'Unknown error'}`, 'error');
+        }
       }
     } catch (error) {
       console.error('Error creating subcategory:', error);
@@ -270,22 +337,41 @@ const CategoryListPage = () => {
 
   const handleUpdateSubcategory = async () => {
     try {
+      // Validate display order
+      if (subcategoryForm.display_order < 1) {
+        showToast('Display order must be at least 1', 'error');
+        return;
+      }
+
+      let subcategoryData = { ...subcategoryForm };
+
       const response = await fetch(`http://localhost:8080/api/v1/subcategories/${editingSubcategory.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(subcategoryForm),
+        body: JSON.stringify(subcategoryData),
       });
 
       if (response.ok) {
+        // Upload image if provided
+        if (subcategoryImageFile) {
+          await handleSubcategoryImageUpload(editingSubcategory.id, subcategoryImageFile);
+        }
+
         showToast('Subcategory updated successfully', 'success');
         setOpenSubcategoryDialog(false);
         setEditingSubcategory(null);
-        setSubcategoryForm({ name: '', image_url: '', display_order: 0 });
+        setSubcategoryForm({ name: '', image_url: '', display_order: 1, is_active: true });
+        setSubcategoryImageFile(null);
         fetchCategories();
       } else {
-        showToast('Failed to update subcategory', 'error');
+        const errorData = await response.json();
+        if (response.status === 409) {
+          showToast('Display order already exists. Please choose a different order.', 'error');
+        } else {
+          showToast(`Failed to update subcategory: ${errorData.error || 'Unknown error'}`, 'error');
+        }
       }
     } catch (error) {
       console.error('Error updating subcategory:', error);
@@ -342,12 +428,14 @@ const CategoryListPage = () => {
       setSubcategoryForm({
         name: subcategory.name,
         image_url: subcategory.image_url || '',
-        display_order: subcategory.display_order || 0,
+        display_order: subcategory.display_order || 1,
+        is_active: subcategory.is_active !== undefined ? subcategory.is_active : true,
       });
     } else {
       setEditingSubcategory(null);
-      setSubcategoryForm({ name: '', image_url: '', display_order: 0 });
+      setSubcategoryForm({ name: '', image_url: '', display_order: 1, is_active: true });
     }
+    setSubcategoryImageFile(null);
     setOpenSubcategoryDialog(true);
   };
 
@@ -372,6 +460,7 @@ const CategoryListPage = () => {
       name: '',
       mini_app_association: [],
       store_id: null,
+      display_order: 1,
       is_active: true,
     });
   };
@@ -383,6 +472,7 @@ const CategoryListPage = () => {
         name: category.name,
         mini_app_association: category.mini_app_association,
         store_id: category.store_id,
+        display_order: category.display_order || 1,
         is_active: category.is_active,
       });
     } else {
@@ -412,10 +502,7 @@ const CategoryListPage = () => {
     }
   };
 
-  const getMiniAppLabel = (value) => {
-    const tab = miniAppTabs.find(tab => tab.value === value);
-    return tab ? tab.label : value;
-  };
+
 
   const currentMiniApp = miniAppTabs[currentTab];
 
@@ -448,20 +535,7 @@ const CategoryListPage = () => {
         ))}
       </Tabs>
 
-      {/* Current Mini-App Info */}
-      <Card sx={{ mb: 3, bgcolor: `${currentMiniApp.color}10` }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" mb={2}>
-            {currentMiniApp.icon}
-            <Typography variant="h6" sx={{ ml: 1, color: currentMiniApp.color }}>
-              {currentMiniApp.label}
-            </Typography>
-          </Box>
-          <Typography variant="body2" color="text.secondary">
-            {currentMiniApp.description}
-          </Typography>
-        </CardContent>
-      </Card>
+
 
       {/* Store Selection for Location-Based Mini-Apps */}
       {currentMiniApp.requiresStore && (
@@ -475,32 +549,35 @@ const CategoryListPage = () => {
                 No stores found for this mini-app type. Please create stores first.
               </Alert>
             ) : (
-              <Grid container spacing={2}>
-                {stores.map((store) => (
-                  <Grid item xs={12} sm={6} md={4} key={store.id}>
-                    <Card
-                      sx={{
-                        cursor: 'pointer',
-                        border: selectedStore?.id === store.id ? `2px solid ${currentMiniApp.color}` : '1px solid #e0e0e0',
-                        '&:hover': { boxShadow: 2 }
-                      }}
-                      onClick={() => setSelectedStore(store)}
-                    >
-                      <CardContent>
-                        <Box display="flex" alignItems="center">
+              <FormControl fullWidth>
+                <InputLabel>Store Location</InputLabel>
+                <Select
+                  value={selectedStore?.id || ''}
+                  label="Store Location"
+                  onChange={(e) => {
+                    const storeId = e.target.value;
+                    const store = stores.find(s => s.id === storeId);
+                    setSelectedStore(store);
+                  }}
+                >
+                  {stores.map((store) => {
+                    const typeInfo = getStoreTypeInfo(store.type);
+                    return (
+                      <MenuItem key={store.id} value={store.id}>
+                        <Box display="flex" alignItems="center" width="100%">
                           <Avatar
-                            src={store.image_url}
+                            src={store.image_url ? `http://localhost:8080${store.image_url}` : ''}
                             sx={{
-                              width: 40,
-                              height: 40,
+                              width: 32,
+                              height: 32,
                               mr: 2,
-                              bgcolor: currentMiniApp.color
+                              bgcolor: typeInfo.color
                             }}
                           >
                             <StoreIcon />
                           </Avatar>
                           <Box>
-                            <Typography variant="subtitle1">
+                            <Typography variant="body1">
                               {store.name}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
@@ -508,28 +585,18 @@ const CategoryListPage = () => {
                             </Typography>
                           </Box>
                         </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
+                      </MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
             )}
           </CardContent>
         </Card>
       )}
 
       {/* Action Bar */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          {selectedStore && (
-            <Chip
-              icon={<StoreIcon />}
-              label={`Categories for: ${selectedStore.name}`}
-              color="primary"
-              variant="outlined"
-            />
-          )}
-        </Box>
+      <Box display="flex" justifyContent="flex-end" alignItems="center" mb={3}>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -565,29 +632,12 @@ const CategoryListPage = () => {
                       <Typography variant="h6">
                         {category.name}
                       </Typography>
-                      {category.store_name && (
-                        <Typography variant="caption" color="text.secondary">
-                          Store: {category.store_name} ({category.store_city})
-                        </Typography>
-                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        Order: {category.display_order || 'N/A'}
+                        {category.store_name && ` • Store: ${category.store_name} (${category.store_city})`}
+                      </Typography>
                     </Box>
-                    <Box display="flex" gap={1} mr={2}>
-                      <Chip
-                        label={currentMiniApp.label}
-                        size="small"
-                        sx={{
-                          bgcolor: currentMiniApp.color,
-                          color: 'white'
-                        }}
-                      />
-                      {category.store_type && (
-                        <Chip
-                          label={category.store_type}
-                          size="small"
-                          variant="outlined"
-                        />
-                      )}
-                    </Box>
+
                     <IconButton
                       size="small"
                       onClick={(e) => {
@@ -629,7 +679,7 @@ const CategoryListPage = () => {
                         {category.subcategories.map((subcategory) => (
                           <ListItem key={subcategory.id}>
                             <Avatar
-                              src={subcategory.image_url}
+                              src={subcategory.image_url ? `http://localhost:8080${subcategory.image_url}` : ''}
                               sx={{ mr: 2, width: 40, height: 40 }}
                             >
                               <SubcategoryIcon />
@@ -706,6 +756,22 @@ const CategoryListPage = () => {
             sx={{ mb: 2 }}
           />
 
+          <TextField
+            margin="dense"
+            label="Display Order"
+            type="number"
+            fullWidth
+            variant="outlined"
+            value={categoryForm.display_order}
+            onChange={(e) => {
+              const value = parseInt(e.target.value) || 1;
+              setCategoryForm({ ...categoryForm, display_order: Math.max(1, value) });
+            }}
+            inputProps={{ min: 1 }}
+            helperText="Minimum value is 1. Categories will be displayed in ascending order."
+            sx={{ mb: 2 }}
+          />
+
           {currentMiniApp.requiresStore && selectedStore && (
             <Alert severity="info" sx={{ mb: 2 }}>
               This category will be scoped to: <strong>{selectedStore.name}</strong> ({selectedStore.city})
@@ -753,15 +819,35 @@ const CategoryListPage = () => {
             onChange={(e) => setSubcategoryForm({ ...subcategoryForm, name: e.target.value })}
             sx={{ mb: 2 }}
           />
-          <TextField
-            margin="dense"
-            label="Image URL"
-            fullWidth
-            variant="outlined"
-            value={subcategoryForm.image_url}
-            onChange={(e) => setSubcategoryForm({ ...subcategoryForm, image_url: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" mb={1}>
+              Subcategory Image
+            </Typography>
+            <Button
+              variant="outlined"
+              component="label"
+              startIcon={<PhotoIcon />}
+              fullWidth
+              sx={{ mb: 1 }}
+            >
+              {subcategoryImageFile ? subcategoryImageFile.name : 'Choose Image File'}
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files[0]) {
+                    setSubcategoryImageFile(e.target.files[0]);
+                  }
+                }}
+              />
+            </Button>
+            {subcategoryImageFile && (
+              <Typography variant="caption" color="text.secondary">
+                Selected: {subcategoryImageFile.name}
+              </Typography>
+            )}
+          </Box>
           <TextField
             margin="dense"
             label="Display Order"
@@ -769,7 +855,12 @@ const CategoryListPage = () => {
             fullWidth
             variant="outlined"
             value={subcategoryForm.display_order}
-            onChange={(e) => setSubcategoryForm({ ...subcategoryForm, display_order: parseInt(e.target.value) || 0 })}
+            onChange={(e) => {
+              const value = parseInt(e.target.value) || 1;
+              setSubcategoryForm({ ...subcategoryForm, display_order: Math.max(1, value) });
+            }}
+            inputProps={{ min: 1 }}
+            helperText="Minimum value is 1"
           />
         </DialogContent>
         <DialogActions>

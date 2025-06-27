@@ -9,7 +9,6 @@ class MapMarkerUtils {
   static const Color unmannedWarehouseColor = Color(0xFF4CAF50);
   static const Color exhibitionStoreColor = Color(0xFFFFD556);
   static const Color exhibitionMallColor = Color(0xFFF38900);
-  static const Color userLocationColor = Color(0xFF4285F4);
 
   /// Chooses the correct icon for a given store type
   static IconData _getIconForStoreType(StoreType storeType) {
@@ -47,38 +46,48 @@ class MapMarkerUtils {
   }) async {
     final pictureRecorder = ui.PictureRecorder();
     final canvas = Canvas(pictureRecorder);
-    final rect = Rect.fromLTWH(0.0, 0.0, size, size);
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(20.0)); // Rounded square shape
+    final double width = size;
+    final double height = size * 1.2; // Make it taller for the teardrop shape
+    final double radius = width / 2;
+
+    // Path for the pin body
+    final path = Path();
+    path.moveTo(radius, height); // Start at the bottom tip
+    path.quadraticBezierTo(0, height * 0.7, 0, radius); // Bottom-left curve
+    path.arcTo(Rect.fromCircle(center: Offset(radius, radius), radius: radius), 3.14, 3.14, false); // Top semi-circle
+    path.quadraticBezierTo(width, height * 0.7, radius, height); // Bottom-right curve
+    path.close();
 
     // Draw the background shape
     final backgroundPaint = Paint()..color = backgroundColor;
-    canvas.drawRRect(rrect, backgroundPaint);
+    canvas.drawPath(path, backgroundPaint);
 
     // Prepare to draw the icon
     final iconPainter = TextPainter(textDirection: TextDirection.ltr);
     iconPainter.text = TextSpan(
       text: String.fromCharCode(iconData.codePoint),
       style: TextStyle(
-        fontSize: size * 0.6,
+        fontSize: size * 0.6, // Icon size is relative to the circle part
         fontFamily: iconData.fontFamily,
         color: Colors.white,
       ),
     );
 
-    // Layout and paint the icon in the center of the shape
+    // Layout and paint the icon in the center of the circular part
     iconPainter.layout();
     iconPainter.paint(
       canvas,
       Offset(
-        (size - iconPainter.width) / 2,
-        (size - iconPainter.height) / 2,
+        (width - iconPainter.width) / 2,
+        (height - iconPainter.height) / 2.5, // Adjust vertical position for the teardrop shape
       ),
     );
 
     // Convert canvas to image
-    final image = await pictureRecorder.endRecording().toImage(size.toInt(), size.toInt());
+    final image = await pictureRecorder.endRecording().toImage(width.toInt(), height.toInt());
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
 
+    // Use the new, non-deprecated method name
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 
@@ -90,25 +99,7 @@ class MapMarkerUtils {
     return await _createMarkerWithIcon(
       backgroundColor: color,
       iconData: icon,
-      size: 40.0, // <-- This is a more reasonable size
+      size: 35.0, // A reasonable size for the markers
     );
-  }
-
-  /// Creates a user location marker (Google Maps style current location icon)
-  static Future<BitmapDescriptor> createUserLocationMarker({double size = 80}) async {
-    final pictureRecorder = ui.PictureRecorder();
-    final canvas = Canvas(pictureRecorder);
-    final center = Offset(size / 2, size / 2);
-
-    // Outer transparent blue circle
-    canvas.drawCircle(center, size / 2, Paint()..color = userLocationColor.withAlpha(51)); // 0.2 opacity is ~51 alpha
-    // White border
-    canvas.drawCircle(center, size / 3.5 + 2, Paint()..color = Colors.white);
-    // Inner solid blue circle
-    canvas.drawCircle(center, size / 3.5, Paint()..color = userLocationColor);
-    
-    final image = await pictureRecorder.endRecording().toImage(size.toInt(), size.toInt());
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 }
