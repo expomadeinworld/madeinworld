@@ -72,7 +72,7 @@ class MapFallback extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '附近的无人门店 (${stores.length})',
+                    '附近的无人商店 (${stores.length})',
                     style: AppTextStyles.cardTitle,
                   ),
                   const SizedBox(height: 12),

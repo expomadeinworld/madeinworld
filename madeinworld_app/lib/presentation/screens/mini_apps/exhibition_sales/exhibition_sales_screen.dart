@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
 import '../../../../data/models/category.dart';
+import '../../../../data/models/store.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/product.dart';
 import '../../../../core/enums/store_type.dart';
@@ -14,6 +15,7 @@ import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
 import '../../../providers/cart_provider.dart';
 import '../../cart/cart_screen.dart';
+import 'exhibition_sales_locations_screen.dart';
 
 class ExhibitionSalesScreen extends StatefulWidget {
   const ExhibitionSalesScreen({super.key});
@@ -24,7 +26,7 @@ class ExhibitionSalesScreen extends StatefulWidget {
 
 class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
   int _currentIndex = 0;
-  
+
   final List<Widget> _screens = [
     const _ProductsTab(),
     const _LocationsTab(),
@@ -32,98 +34,104 @@ class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
     const _ProfileTab(),
   ];
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          '展销展消',
-          style: AppTextStyles.majorHeader,
+  // ADD THIS NEW HELPER METHOD INSIDE _ExhibitionSalesScreenState
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(
+        '展销展消',
+        style: AppTextStyles.majorHeader,
+      ),
+      backgroundColor: AppColors.lightBackground,
+      elevation: 0,
+      leading: IconButton(
+        onPressed: () => Navigator.of(context).pop(),
+        icon: const Icon(
+          Icons.arrow_back,
+          color: AppColors.primaryText,
         ),
-        backgroundColor: AppColors.lightBackground,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
+      ),
+      actions: [
+        IconButton(
+          onPressed: () {
+            // Search functionality
+          },
           icon: const Icon(
-            Icons.arrow_back,
+            Icons.search,
             color: AppColors.primaryText,
           ),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              // Search functionality
-            },
-            icon: const Icon(
-              Icons.search,
-              color: AppColors.primaryText,
-            ),
+        IconButton(
+          onPressed: () {
+            // Notifications
+          },
+          icon: const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.primaryText,
           ),
-          IconButton(
-            onPressed: () {
-              // Notifications
-            },
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.primaryText,
-            ),
-          ),
-          Consumer<CartProvider>(
-            builder: (context, cartProvider, child) {
-              return Stack(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const CartScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.shopping_cart_outlined,
-                      color: AppColors.primaryText,
-                    ),
+        ),
+        Consumer<CartProvider>(
+          builder: (context, cartProvider, child) {
+            return Stack(
+              children: [
+                IconButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const CartScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.shopping_cart_outlined,
+                    color: AppColors.primaryText,
                   ),
-                  if (cartProvider.itemCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: AppColors.themeRed,
-                          borderRadius: BorderRadius.circular(10),
+                ),
+                if (cartProvider.itemCount > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.themeRed,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '${cartProvider.itemCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
                         ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          '${cartProvider.itemCount}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
-                ],
-              );
-            },
+                  ),
+              ],
+            );
+          },
+        ),
+        IconButton(
+          onPressed: () {
+            // QR Scanner
+          },
+          icon: const Icon(
+            Icons.qr_code_scanner,
+            color: AppColors.primaryText,
           ),
-          IconButton(
-            onPressed: () {
-              // QR Scanner
-            },
-            icon: const Icon(
-              Icons.qr_code_scanner,
-              color: AppColors.primaryText,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // REPLACE the old appBar with this conditional line
+      appBar: _currentIndex == 1 ? null : _buildAppBar(),
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -246,15 +254,42 @@ class _ProductsTab extends StatefulWidget {
 }
 
 class _ProductsTabState extends State<_ProductsTab> {
+  String? _selectedCategoryId = 'featured'; // Default to featured/推荐
+  Store? _selectedStore; // Selected store for location-based categories
   final ApiService _apiService = ApiService();
   late Future<List<Category>> _categoriesFuture;
   late Future<List<Product>> _productsFuture;
-  String? _selectedCategoryId;
+  late Future<List<Store>> _storesFuture;
 
   @override
   void initState() {
     super.initState();
+    // Initialize stores future
+    _storesFuture = _loadStores();
     _fetchData();
+  }
+
+  Future<List<Store>> _loadStores() async {
+    try {
+      // Get exhibition sales stores from API using mini_app_type filter
+      final stores = await _apiService.fetchStores();
+      // Filter for exhibition sales stores (展销商店 and 展销商城)
+      final exhibitionStores = stores.where((store) =>
+        store.type == StoreType.exhibitionStore ||
+        store.type == StoreType.exhibitionMall
+      ).toList();
+
+      if (exhibitionStores.isNotEmpty && _selectedStore == null) {
+        // Auto-select first store if none selected
+        setState(() {
+          _selectedStore = exhibitionStores.first;
+        });
+      }
+      return exhibitionStores;
+    } catch (e) {
+      debugPrint('Error loading stores: $e');
+      return [];
+    }
   }
 
   void _fetchData() {
@@ -263,14 +298,18 @@ class _ProductsTabState extends State<_ProductsTab> {
         miniAppType: MiniAppType.exhibitionSales,
         includeSubcategories: true,
       );
-      _productsFuture = _apiService.fetchProducts();
+      // Pass the storeId to the products fetch call
+      _productsFuture = _apiService.fetchProducts(
+        storeType: StoreType.exhibitionStore,
+        storeId: _selectedStore?.id,
+      );
     });
   }
 
   Future<void> _refreshData() async {
     _fetchData();
     try {
-      await Future.wait([_categoriesFuture, _productsFuture]);
+      await Future.wait([_categoriesFuture, _productsFuture, _storesFuture]);
     } catch (e) {
       // Handle errors silently for refresh
     }
@@ -281,7 +320,7 @@ class _ProductsTabState extends State<_ProductsTab> {
     return RefreshIndicator(
       onRefresh: _refreshData,
       child: FutureBuilder<List<dynamic>>(
-        future: Future.wait([_categoriesFuture, _productsFuture]),
+        future: Future.wait([_categoriesFuture, _productsFuture, _storesFuture]),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -326,6 +365,66 @@ class _ProductsTabState extends State<_ProductsTab> {
 
             return Column(
               children: [
+                // Store Selection Section
+                FutureBuilder<List<Store>>(
+                  future: _storesFuture,
+                  builder: (context, storeSnapshot) {
+                    if (storeSnapshot.hasData && storeSnapshot.data!.isNotEmpty) {
+                      final stores = storeSnapshot.data!;
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: AppColors.secondaryText.withValues(alpha: 0.2),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '选择门店',
+                              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<Store>(
+                              value: _selectedStore,
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              items: stores.map((store) {
+                                return DropdownMenuItem<Store>(
+                                  value: store,
+                                  child: Text(
+                                    '${store.name} - ${store.city}',
+                                    style: AppTextStyles.body,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (Store? newStore) {
+                                setState(() {
+                                  _selectedStore = newStore;
+                                });
+                                _fetchData(); // Refresh data when store changes
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink(); // Hide if no stores
+                  },
+                ),
+
                 // Categories horizontal list
                 Container(
                   height: 50,
@@ -404,9 +503,7 @@ class _LocationsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('展销地点功能开发中...'),
-    );
+    return const ExhibitionSalesLocationsScreen();
   }
 }
 

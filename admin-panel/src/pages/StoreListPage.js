@@ -58,7 +58,7 @@ const StoreListPage = () => {
   });
 
   const storeTypeOptions = [
-    { value: '无人门店', label: '无人门店', color: '#1976d2', miniApp: '无人商店' },
+    { value: '无人商店', label: '无人商店', color: '#1976d2', miniApp: '无人商店' },
     { value: '无人仓店', label: '无人仓店', color: '#1565c0', miniApp: '无人商店' },
     { value: '展销商店', label: '展销商店', color: '#7b1fa2', miniApp: '展销展消' },
     { value: '展销商城', label: '展销商城', color: '#6a1b9a', miniApp: '展销展消' },

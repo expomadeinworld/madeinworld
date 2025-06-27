@@ -115,6 +115,7 @@ const CategoryListPage = () => {
 
   useEffect(() => {
     fetchCategories();
+    fetchStores(); // Also fetch stores when tab changes
   }, [currentTab, selectedStore]);
 
   const fetchCategories = async () => {
@@ -131,13 +132,16 @@ const CategoryListPage = () => {
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setCategories(data);
+        // Ensure data is always an array
+        setCategories(Array.isArray(data) ? data : []);
       } else {
         showToast('Failed to fetch categories', 'error');
+        setCategories([]); // Reset to empty array on error
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
       showToast('Error fetching categories', 'error');
+      setCategories([]); // Reset to empty array on exception
     } finally {
       setLoading(false);
     }
@@ -146,22 +150,29 @@ const CategoryListPage = () => {
   const fetchStores = async () => {
     try {
       const currentMiniApp = miniAppTabs[currentTab];
-      if (!currentMiniApp.requiresStore) return;
+      if (!currentMiniApp.requiresStore) {
+        setStores([]); // Reset stores for non-store-based mini-apps
+        return;
+      }
 
       const response = await fetch(`http://localhost:8080/api/v1/stores?mini_app_type=${currentMiniApp.value}`);
       if (response.ok) {
         const data = await response.json();
-        setStores(data);
+        // Ensure data is always an array
+        const storesArray = Array.isArray(data) ? data : [];
+        setStores(storesArray);
         // Auto-select first store if none selected
-        if (data.length > 0 && !selectedStore) {
-          setSelectedStore(data[0]);
+        if (storesArray.length > 0 && !selectedStore) {
+          setSelectedStore(storesArray[0]);
         }
       } else {
         showToast('Failed to fetch stores', 'error');
+        setStores([]); // Reset to empty array on error
       }
     } catch (error) {
       console.error('Error fetching stores:', error);
       showToast('Error fetching stores', 'error');
+      setStores([]); // Reset to empty array on exception
     }
   };
 
@@ -459,7 +470,7 @@ const CategoryListPage = () => {
             <Typography variant="h6" mb={2}>
               Select Store Location
             </Typography>
-            {stores.length === 0 ? (
+            {!stores || stores.length === 0 ? (
               <Alert severity="warning">
                 No stores found for this mini-app type. Please create stores first.
               </Alert>
@@ -535,7 +546,7 @@ const CategoryListPage = () => {
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
           <Typography>Loading categories...</Typography>
         </Box>
-      ) : categories.length === 0 ? (
+      ) : !categories || categories.length === 0 ? (
         <Alert severity="info">
           {currentMiniApp.requiresStore && !selectedStore
             ? 'Please select a store location to view categories.'

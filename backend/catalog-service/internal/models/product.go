@@ -11,7 +11,7 @@ import (
 type StoreType string
 
 const (
-	StoreTypeUnmannedStore     StoreType = "无人门店"
+	StoreTypeUnmannedStore     StoreType = "无人商店"
 	StoreTypeUnmannedWarehouse StoreType = "无人仓店"
 	StoreTypeExhibitionStore   StoreType = "展销商店"
 	StoreTypeExhibitionMall    StoreType = "展销商城"

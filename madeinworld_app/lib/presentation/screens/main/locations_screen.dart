@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/navigation/custom_page_transitions.dart';
 import '../../../core/utils/responsive_utils.dart';
+import '../../../core/utils/map_marker_utils.dart';
 import '../../../data/models/store.dart';
 import '../../../data/services/api_service.dart';
 import '../../../core/enums/store_type.dart';
@@ -27,15 +28,62 @@ class LocationsScreen extends StatefulWidget {
 class _LocationsScreenState extends State<LocationsScreen> {
   GoogleMapController? _mapController;
   final TextEditingController _searchController = TextEditingController();
-  bool _isSearchVisible = false;
   Store? _selectedStore;
   final ApiService _apiService = ApiService();
-  late Future<List<Store>> _storesFuture;
+  List<Store> _allStores = [];
+  List<Store> _filteredStores = [];
+
+  // Legend filtering state - all store types visible by default
+  final Map<StoreType, bool> _storeTypeVisibility = {
+    StoreType.unmannedStore: true,
+    StoreType.unmannedWarehouse: true,
+    StoreType.exhibitionStore: true,
+    StoreType.exhibitionMall: true,
+  };
+
+  // Cache for custom markers
+  final Map<StoreType, BitmapDescriptor> _markerCache = {};
+  BitmapDescriptor? _userLocationMarker;
 
   @override
   void initState() {
     super.initState();
-    _storesFuture = _apiService.fetchStores(); // Load all stores from API
+    _loadStores();
+    _initializeMarkers();
+  }
+
+  void _initializeMarkers() async {
+    // Pre-load standard markers for better performance
+    for (final storeType in StoreType.values) {
+      _markerCache[storeType] = await MapMarkerUtils.getStoreMarkerIcon(storeType);
+    }
+    _userLocationMarker = await MapMarkerUtils.createUserLocationMarker();
+    if (mounted) setState(() {});
+  }
+
+  void _loadStores() async {
+    try {
+      final stores = await _apiService.fetchStores();
+      setState(() {
+        _allStores = stores;
+        _filteredStores = stores;
+      });
+    } catch (e) {
+      debugPrint('Error loading stores: $e');
+    }
+  }
+
+  void _filterStores(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredStores = _allStores;
+      } else {
+        _filteredStores = _allStores.where((store) {
+          return store.name.toLowerCase().contains(query.toLowerCase()) ||
+                 store.address.toLowerCase().contains(query.toLowerCase());
+        }).toList();
+      }
+    });
   }
 
   @override
@@ -53,18 +101,44 @@ class _LocationsScreenState extends State<LocationsScreen> {
           // Full-screen map
           _buildFullScreenMap(),
 
-          // Map Legend
+          // NEW CORRECTED LAYOUT
           Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            right: 16,
-            child: _buildMapLegend(),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              // Use bottom: false because we only care about top padding here
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0),
+                child: Row(
+                  // Align the top of the left-side controls and the top of the legend
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // This Expanded widget contains the back button and search bar
+                    Expanded(
+                      child: Row(
+                        children: [
+                          // Back button will be created in the next step
+                          _buildBackButton(),
+                          const SizedBox(width: 12),
+                          // Search bar will be created in the next step
+                          Expanded(child: _buildSearchBar()),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // The legend sits here, and its height will not affect
+                    // the vertical alignment of the back button and search bar.
+                    _buildMapLegend(),
+                  ],
+                ),
+              ),
+            ),
           ),
 
-          // Floating search bar
-          if (_isSearchVisible) _buildFloatingSearchBar(),
-
-          // Top controls
-          _buildTopControls(),
+          // My location button (positioned below legend)
+          _buildLocationButton(),
 
           // Store details bottom sheet
           if (_selectedStore != null) _buildStoreDetailsSheet(),
@@ -78,144 +152,99 @@ class _LocationsScreenState extends State<LocationsScreen> {
       builder: (context, locationProvider, child) {
         final userPosition = locationProvider.currentPosition;
 
-        return FutureBuilder<List<Store>>(
-          future: _storesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.themeRed,
-                ),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '加载门店失败',
-                      style: AppTextStyles.responsiveBody(context),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _storesFuture = _apiService.fetchStores();
-                        });
-                      },
-                      child: const Text('重试'),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            final stores = snapshot.data ?? [];
-            if (stores.isEmpty) {
-              return const Center(
-                child: Text('暂无门店数据'),
-              );
-            }
-
-            // Create markers for all stores with color coding
-            final markers = <Marker>{};
-
-        // Add store markers with color-coded styling based on store type
-        for (final store in stores) {
-          // Determine marker color based on store type
-          double hue;
-          switch (store.type) {
-            case StoreType.unmannedStore:
-              hue = BitmapDescriptor.hueBlue; // Blue for unmanned stores
-              break;
-            case StoreType.unmannedWarehouse:
-              hue = BitmapDescriptor.hueAzure; // Light blue for unmanned warehouses
-              break;
-            case StoreType.exhibitionStore:
-              hue = BitmapDescriptor.hueViolet; // Purple for exhibition stores
-              break;
-            case StoreType.exhibitionMall:
-              hue = BitmapDescriptor.hueMagenta; // Magenta for exhibition malls
-              break;
-          }
-
-          markers.add(
-            Marker(
-              markerId: MarkerId(store.id),
-              position: LatLng(store.latitude, store.longitude),
-              infoWindow: InfoWindow.noText,
-              icon: BitmapDescriptor.defaultMarkerWithHue(hue),
-              onTap: () {
-                setState(() {
-                  _selectedStore = store;
-                });
-              },
+        // Show loading indicator if stores are not loaded yet
+        if (_filteredStores.isEmpty && _allStores.isEmpty) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.themeRed,
             ),
           );
         }
 
-        // Note: User location pin removed as per requirements
+        // Use filtered stores for display
+        final stores = _filteredStores;
 
-        // Default camera position (Lugano, Switzerland)
-        const defaultPosition = CameraPosition(
-          target: LatLng(46.0037, 8.9511), // Lugano coordinates
-          zoom: 13.0,
-        );
+        if (stores.isEmpty) {
+          return const Center(
+            child: Text('暂无门店数据'),
+          );
+        }
 
-        // Use user position if available, otherwise default to Lugano
-        final cameraPosition = userPosition != null
-            ? CameraPosition(
-                target: LatLng(userPosition.latitude, userPosition.longitude),
-                zoom: 14.0,
-              )
-            : defaultPosition;
+        // Create markers for all stores
+        final Set<Marker> markers = {};
+
+        // Add store markers with custom styling based on store type and visibility
+        for (final store in stores) {
+          // Only add marker if this store type is visible
+          if (_storeTypeVisibility[store.type] == true) {
+            final markerIcon = _markerCache[store.type];
+            if (markerIcon != null) {
+              markers.add(
+                Marker(
+                  markerId: MarkerId(store.id.toString()),
+                  position: LatLng(store.latitude, store.longitude),
+                  icon: markerIcon,
+                  infoWindow: InfoWindow(
+                    title: store.name,
+                    snippet: store.address,
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedStore = store;
+                    });
+                  },
+                ),
+              );
+            }
+          }
+        }
+
+        // Add user location marker if available
+        if (userPosition != null && _userLocationMarker != null) {
+          markers.add(
+            Marker(
+              markerId: const MarkerId('user_location'),
+              position: LatLng(userPosition.latitude, userPosition.longitude),
+              icon: _userLocationMarker!,
+              infoWindow: const InfoWindow(
+                title: '我的位置',
+                snippet: '当前位置',
+              ),
+            ),
+          );
+        }
 
         return GoogleMap(
           onMapCreated: (GoogleMapController controller) {
             _mapController = controller;
-            // Fit bounds to show all stores and user location
-            if (stores.isNotEmpty) {
+            // Fit map to show all stores after a short delay
+            Future.delayed(const Duration(milliseconds: 500), () {
               _fitMapToStores(controller, stores, userPosition);
-            }
+            });
           },
-          initialCameraPosition: cameraPosition,
+          initialCameraPosition: CameraPosition(
+            target: userPosition != null
+                ? LatLng(userPosition.latitude, userPosition.longitude)
+                : stores.isNotEmpty
+                    ? LatLng(stores.first.latitude, stores.first.longitude)
+                    : const LatLng(46.0037, 8.9511), // Default to Switzerland center
+            zoom: 12.0,
+          ),
           markers: markers,
-          myLocationEnabled: true, // Always enable to show blue dot
-          myLocationButtonEnabled: false, // We have our own custom button
-          zoomControlsEnabled: false, // We have custom zoom controls
+          myLocationEnabled: false, // We handle location manually
+          myLocationButtonEnabled: false, // We have custom location button
+          zoomControlsEnabled: false, // We have custom controls
           mapToolbarEnabled: false,
-          compassEnabled: true,
-          rotateGesturesEnabled: true,
-          scrollGesturesEnabled: true,
-          zoomGesturesEnabled: true,
-          tiltGesturesEnabled: true,
-          mapType: MapType.normal,
-          onTap: (_) {
-            // Hide store details when tapping on empty map area
+          onTap: (LatLng position) {
+            // Hide store details when tapping on map
             if (_selectedStore != null) {
               setState(() {
                 _selectedStore = null;
               });
             }
-            // Hide search bar when tapping on map
-            if (_isSearchVisible) {
-              setState(() {
-                _isSearchVisible = false;
-              });
-            }
           },
           onCameraMove: (CameraPosition position) {
             // Optional: Handle camera movement for real-time updates
-          },
-        );
           },
         );
       },
@@ -293,237 +322,161 @@ class _LocationsScreenState extends State<LocationsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _buildLegendItem('无人门店', Colors.blue),
-          _buildLegendItem('无人仓店', Colors.lightBlue),
-          _buildLegendItem('展销商店', Colors.purple),
-          _buildLegendItem('展销商城', Colors.pinkAccent),
+          _buildLegendItem('无人门店', MapMarkerUtils.unmannedStoreColor, StoreType.unmannedStore),
+          _buildLegendItem('无人仓店', MapMarkerUtils.unmannedWarehouseColor, StoreType.unmannedWarehouse),
+          _buildLegendItem('展销商店', MapMarkerUtils.exhibitionStoreColor, StoreType.exhibitionStore),
+          _buildLegendItem('展销商城', MapMarkerUtils.exhibitionMallColor, StoreType.exhibitionMall),
         ],
       ),
     );
   }
 
-  Widget _buildLegendItem(String label, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildLegendItem(String label, Color color, StoreType storeType) {
+    final isVisible = _storeTypeVisibility[storeType] ?? true;
 
-  Widget _buildTopControls() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // Back button
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                onPressed: () {
-                  // Safely navigate back with proper iOS-style animation
-                  try {
-                    if (Navigator.of(context).canPop()) {
-                      // Use default pop which will automatically reverse the slide-away transition
-                      Navigator.of(context).pop();
-                    } else {
-                      // If can't pop, navigate to home screen with slide-away transition
-                      Navigator.of(context).pushReplacement(
-                        SlideAwayRoute(page: const MainScreen()),
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint('Navigation error: $e');
-                    // Force navigation to home as fallback
-                    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                  }
-                },
-                icon: const Icon(Icons.chevron_left, size: 28),
-              ),
-            ),
-
-            const Spacer(),
-
-            // Search button
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                onPressed: () {
-                  setState(() {
-                    _isSearchVisible = !_isSearchVisible;
-                  });
-                },
-                icon: Icon(
-                  _isSearchVisible ? Icons.close : Icons.search,
-                  color: AppColors.primaryText,
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // My location button
-            Consumer<LocationProvider>(
-              builder: (context, locationProvider, child) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    onPressed: _centerOnUserLocation, // Always allow tapping - method will handle permission/location logic
-                    icon: Icon(
-                      Icons.my_location,
-                      color: locationProvider.hasLocationPermission
-                          ? AppColors.themeRed
-                          : AppColors.secondaryText,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFloatingSearchBar() {
-    return Positioned(
-      top: 100,
-      left: 16,
-      right: 16,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          decoration: InputDecoration(
-            hintText: '搜索无人商店名称或地址',
-            hintStyle: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.secondaryText,
-            ),
-            prefixIcon: Icon(
-              Icons.search,
-              color: AppColors.themeRed,
-              size: 20,
-            ),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-                      _onSearchChanged('');
-                    },
-                    icon: Icon(
-                      Icons.clear,
-                      color: AppColors.secondaryText,
-                      size: 20,
-                    ),
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Handle search functionality
-  void _onSearchChanged(String query) {
-    if (query.isEmpty) {
-      // Show all stores when search is cleared
-      setState(() {});
-      return;
-    }
-
-    // Search within the loaded stores from the API
-    _storesFuture.then((stores) {
-      final matchingStores = stores.where((store) =>
-        store.name.toLowerCase().contains(query.toLowerCase()) ||
-        store.address.toLowerCase().contains(query.toLowerCase())
-      ).toList();
-
-      if (matchingStores.isNotEmpty) {
-        // Focus map on first matching store
-        final firstMatch = matchingStores.first;
-        _mapController?.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-              target: LatLng(firstMatch.latitude, firstMatch.longitude),
-              zoom: 16.0,
-            ),
-          ),
-        );
-
-        // Show store details for first match
+    return GestureDetector(
+      onTap: () {
         setState(() {
-          _selectedStore = firstMatch;
+          _storeTypeVisibility[storeType] = !isVisible;
         });
-      }
-    }).catchError((error) {
-      // Handle search error silently
-      debugPrint('Search error: $error');
-    });
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: isVisible ? color : Colors.grey.shade300,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: isVisible ? AppColors.secondaryText : Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
+
+  Widget _buildBackButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        onPressed: () {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          } else {
+            Navigator.of(context).pushReplacement(
+              SlideAwayRoute(page: const MainScreen()),
+            );
+          }
+        },
+        icon: const Icon(Icons.chevron_left, size: 28),
+        color: AppColors.primaryText,
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      height: 48, // A fixed height for alignment
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: '搜索店铺...',
+          hintStyle: AppTextStyles.body.copyWith(
+            color: AppColors.secondaryText,
+          ),
+          prefixIcon: const Icon(
+            Icons.search,
+            color: AppColors.secondaryText,
+          ),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  onPressed: () {
+                    _searchController.clear();
+                    _filterStores('');
+                  },
+                  icon: const Icon(
+                    Icons.clear,
+                    color: AppColors.secondaryText,
+                  ),
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14, // Adjusted for better vertical centering
+          ),
+        ),
+        onChanged: _filterStores,
+      ),
+    );
+  }
+
+  Widget _buildLocationButton() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 180, // Position below legend
+      right: 16,
+      child: Consumer<LocationProvider>(
+        builder: (context, locationProvider, child) {
+          return Container(
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: _centerOnUserLocation,
+              icon: Icon(
+                Icons.my_location,
+                color: locationProvider.hasLocationPermission
+                    ? AppColors.themeRed
+                    : AppColors.secondaryText,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+
 
   Widget _buildStoreDetailsSheet() {
     if (_selectedStore == null) return const SizedBox.shrink();
@@ -631,7 +584,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(
-                                        '无人门店',
+                                        _selectedStore!.type.displayName,
                                         style: AppTextStyles.responsiveBodySmall(context).copyWith(
                                           color: AppColors.themeRed,
                                           fontWeight: FontWeight.w600,

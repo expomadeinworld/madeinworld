@@ -518,7 +518,12 @@ func (h *Handler) GetCategories(c *gin.Context) {
 	}
 
 	if storeID != "" {
-		conditions = append(conditions, fmt.Sprintf("(store_id = $%d OR store_id IS NULL)", argIndex))
+		if includeStoreInfo {
+			// Use qualified column name when joining with stores table
+			conditions = append(conditions, fmt.Sprintf("(c.store_id = $%d OR c.store_id IS NULL)", argIndex))
+		} else {
+			conditions = append(conditions, fmt.Sprintf("(store_id = $%d OR store_id IS NULL)", argIndex))
+		}
 		args = append(args, storeID)
 		argIndex++
 	}

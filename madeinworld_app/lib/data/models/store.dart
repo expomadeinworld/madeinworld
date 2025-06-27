@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../core/enums/store_type.dart';
 
 class Store {
@@ -29,11 +30,35 @@ class Store {
       address: json['address'],
       latitude: json['latitude'].toDouble(),
       longitude: json['longitude'].toDouble(),
-      type: StoreType.values.firstWhere(
-        (e) => e.toString().split('.').last.toLowerCase() == json['type'].toString().toLowerCase(),
-      ),
+      type: _parseStoreType(json['type']),
       isActive: json['is_active'] ?? true,
     );
+  }
+
+  /// Parse store type from API response
+  /// Handles both Chinese values from API and enum names for backward compatibility
+  static StoreType _parseStoreType(dynamic typeValue) {
+    if (typeValue == null) {
+      throw ArgumentError('Store type cannot be null');
+    }
+
+    final typeString = typeValue.toString();
+
+    // First try to parse as Chinese value (from API)
+    try {
+      return StoreTypeExtension.fromChineseValue(typeString);
+    } catch (e) {
+      // If that fails, try to parse as enum name (backward compatibility)
+      try {
+        return StoreType.values.firstWhere(
+          (e) => e.toString().split('.').last.toLowerCase() == typeString.toLowerCase(),
+        );
+      } catch (e2) {
+        // If both fail, log the error and throw with helpful message
+        debugPrint('ERROR: Unknown store type: "$typeString". Expected Chinese values: 无人门店, 无人仓店, 展销商店, 展销商城');
+        throw ArgumentError('Unknown store type: "$typeString"');
+      }
+    }
   }
 
   Map<String, dynamic> toJson() {

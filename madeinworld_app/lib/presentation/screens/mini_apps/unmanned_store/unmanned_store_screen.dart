@@ -17,6 +17,7 @@ import '../../../widgets/common/category_chip.dart';
 import '../../../providers/cart_provider.dart';
 import '../../../providers/location_provider.dart'; // Import LocationProvider
 import '../../cart/cart_screen.dart';
+import 'unmanned_store_locations_screen.dart';
 
 class UnmannedStoreScreen extends StatefulWidget {
   const UnmannedStoreScreen({super.key});
@@ -35,74 +36,80 @@ class _UnmannedStoreScreenState extends State<UnmannedStoreScreen> {
     const _ProfileTab(),
   ];
 
+  // ADD THIS NEW HELPER METHOD
+  PreferredSizeWidget _buildAppBar(LocationProvider locationProvider) {
+    return AppBar(
+      title: Text(
+        '无人商店',
+        style: AppTextStyles.majorHeader,
+      ),
+      backgroundColor: AppColors.lightBackground,
+      elevation: 0,
+      leading: IconButton(
+        onPressed: () => Navigator.of(context).pop(),
+        icon: const Icon(
+          Icons.arrow_back,
+          color: AppColors.primaryText,
+        ),
+      ),
+      actions: [
+        // Location selector
+        GestureDetector(
+          onTap: () {
+            // Show location selector
+          },
+          child: Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.lightRed,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.location_on,
+                  color: AppColors.themeRed,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                // Use the displayStoreName from the provider
+                Text(
+                  locationProvider.displayStoreName,
+                  style: AppTextStyles.locationStore.copyWith(fontSize: 12),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.keyboard_arrow_down,
+                  color: AppColors.themeRed,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () {
+            // QR Scanner
+          },
+          icon: const Icon(
+            Icons.qr_code_scanner,
+            color: AppColors.primaryText,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Access the LocationProvider here
     final locationProvider = Provider.of<LocationProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          '无人门店',
-          style: AppTextStyles.majorHeader,
-        ),
-        backgroundColor: AppColors.lightBackground,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(
-            Icons.arrow_back,
-            color: AppColors.primaryText,
-          ),
-        ),
-        actions: [
-          // Location selector
-          GestureDetector(
-            onTap: () {
-              // Show location selector
-            },
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.lightRed,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.location_on,
-                    color: AppColors.themeRed,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 4),
-                  // Use the displayStoreName from the provider
-                  Text(
-                    locationProvider.displayStoreName,
-                    style: AppTextStyles.locationStore.copyWith(fontSize: 12),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    color: AppColors.themeRed,
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              // QR Scanner
-            },
-            icon: const Icon(
-              Icons.qr_code_scanner,
-              color: AppColors.primaryText,
-            ),
-          ),
-        ],
-      ),
+      // REPLACE the old appBar property with this conditional one:
+      appBar: _currentIndex == 1 ? null : _buildAppBar(locationProvider),
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -301,7 +308,7 @@ class __ProductsTabState extends State<_ProductsTab> with WidgetsBindingObserver
     try {
       // Get unmanned stores from API using mini_app_type filter
       final stores = await _apiService.fetchStores();
-      // Filter for unmanned stores (无人门店 and 无人仓店)
+      // Filter for unmanned stores (无人商店 and 无人仓店)
       final unmannedStores = stores.where((store) =>
         store.type == StoreType.unmannedStore ||
         store.type == StoreType.unmannedWarehouse
@@ -649,9 +656,7 @@ class _LocationsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('地点功能开发中...'),
-    );
+    return const UnmannedStoreLocationsScreen();
   }
 }
 

@@ -228,7 +228,7 @@ resource "aws_db_instance" "main" {
   backup_window          = "03:00-04:00"
   maintenance_window     = "sun:04:00-sun:05:00"
 
-  skip_final_snapshot = true
+  skip_final_snapshot = false
   deletion_protection = false
 
   tags = {
@@ -415,7 +415,8 @@ data "aws_caller_identity" "current" {}
 # ECR Repository for catalog service
 resource "aws_ecr_repository" "catalog_service" {
   name                 = "madeinworld/catalog-service"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = "MUTABLE"·
+  force_delete       = true //change to false before production
 
   image_scanning_configuration {
     scan_on_push = true
