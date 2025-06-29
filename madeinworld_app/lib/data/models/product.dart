@@ -15,7 +15,7 @@ class Product {
   final List<String> imageUrls;
   final List<String> categoryIds;
   final List<String> subcategoryIds;
-  final int? stockQuantity; // Only for unmanned stores
+  final int? stockLeft; // Only for unmanned stores
 
   Product({
     required this.id,
@@ -32,13 +32,13 @@ class Product {
     required this.imageUrls,
     required this.categoryIds,
     this.subcategoryIds = const [],
-    this.stockQuantity,
+    this.stockLeft,
   });
 
   // Display stock with buffer (actual stock - 5)
   int? get displayStock {
-    if (stockQuantity == null) return null;
-    return (stockQuantity! - 5).clamp(0, stockQuantity!);
+    if (stockLeft == null) return null;
+    return (stockLeft! - 5).clamp(0, stockLeft!);
   }
 
   bool get hasStock {
@@ -93,7 +93,7 @@ class Product {
       imageUrls: List<String>.from(json['image_urls'] ?? []),
       categoryIds: List<String>.from(json['category_ids'] ?? []),
       subcategoryIds: List<String>.from(json['subcategory_ids'] ?? []),
-      stockQuantity: json['stock_quantity'],
+      stockLeft: json['stock_left'],
     );
   }
 
@@ -113,7 +113,7 @@ class Product {
       'image_urls': imageUrls,
       'category_ids': categoryIds,
       'subcategory_ids': subcategoryIds,
-      'stock_quantity': stockQuantity,
+      'stock_left': stockLeft,
     };
   }
 }

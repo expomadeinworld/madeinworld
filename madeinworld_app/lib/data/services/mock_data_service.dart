@@ -63,7 +63,7 @@ class MockDataService {
         isFeatured: true,
         imageUrls: ['https://placehold.co/300x300/FFF5F5/D92525?text=可口可乐'],
         categoryIds: ['1'],
-        stockQuantity: 25, // Display: 20
+        stockLeft: 25, // Display: 20
       ),
       Product(
         id: '2',
@@ -92,7 +92,7 @@ class MockDataService {
         isFeatured: true,
         imageUrls: ['https://placehold.co/300x300/FFF5F5/D92525?text=矿泉水'],
         categoryIds: ['1'],
-        stockQuantity: 15, // Display: 10
+        stockLeft: 15, // Display: 10
       ),
       Product(
         id: '4',
@@ -107,7 +107,7 @@ class MockDataService {
         isFeatured: true,
         imageUrls: ['https://placehold.co/300x300/FFF5F5/D92525?text=巧克力'],
         categoryIds: ['4'],
-        stockQuantity: 12, // Display: 7
+        stockLeft: 12, // Display: 7
       ),
     ];
   }

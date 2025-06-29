@@ -73,32 +73,89 @@ func (a *MiniAppTypeArray) Scan(value interface{}) error {
 
 // Product represents a product in the catalog
 type Product struct {
-	ID                 int         `json:"id" db:"product_id"`
-	SKU                string      `json:"sku" db:"sku"`
-	Title              string      `json:"title" db:"title"`
-	DescriptionShort   string      `json:"description_short" db:"description_short"`
-	DescriptionLong    string      `json:"description_long" db:"description_long"`
-	ManufacturerID     int         `json:"manufacturer_id" db:"manufacturer_id"`
-	StoreType          StoreType   `json:"store_type" db:"store_type"`
-	MiniAppType        MiniAppType `json:"mini_app_type" db:"mini_app_type"`
-	MainPrice          float64     `json:"main_price" db:"main_price"`
-	StrikethroughPrice *float64    `json:"strikethrough_price" db:"strikethrough_price"`
-	IsActive           bool        `json:"is_active" db:"is_active"`
-	IsFeatured         bool        `json:"is_featured" db:"is_featured"`
-	ImageUrls          []string    `json:"image_urls"`
-	CategoryIds        []string    `json:"category_ids"`
-	SubcategoryIds     []string    `json:"subcategory_ids"`
-	StockQuantity      *int        `json:"stock_quantity"`
-	CreatedAt          time.Time   `json:"created_at" db:"created_at"`
-	UpdatedAt          time.Time   `json:"updated_at" db:"updated_at"`
+	ID                      int         `json:"id" db:"product_id"`
+	SKU                     string      `json:"sku" db:"sku"`
+	Title                   string      `json:"title" db:"title"`
+	DescriptionShort        string      `json:"description_short" db:"description_short"`
+	DescriptionLong         string      `json:"description_long" db:"description_long"`
+	ManufacturerID          int         `json:"manufacturer_id" db:"manufacturer_id"`
+	StoreType               StoreType   `json:"store_type" db:"store_type"`
+	MiniAppType             MiniAppType `json:"mini_app_type" db:"mini_app_type"`
+	StoreID                 *int        `json:"store_id" db:"store_id"`
+	MainPrice               float64     `json:"main_price" db:"main_price"`
+	StrikethroughPrice      *float64    `json:"strikethrough_price" db:"strikethrough_price"`
+	CostPrice               *float64    `json:"cost_price,omitempty" db:"cost_price"` // Admin only - excluded from public API
+	StockLeft               int         `json:"stock_left" db:"stock_left"`
+	MinimumOrderQuantity    int         `json:"minimum_order_quantity" db:"minimum_order_quantity"`
+	IsActive                bool        `json:"is_active" db:"is_active"`
+	IsFeatured              bool        `json:"is_featured" db:"is_featured"`
+	IsMiniAppRecommendation bool        `json:"is_mini_app_recommendation" db:"is_mini_app_recommendation"`
+	ImageUrls               []string    `json:"image_urls"`
+	CategoryIds             []string    `json:"category_ids"`
+	SubcategoryIds          []string    `json:"subcategory_ids"`
+	StockQuantity           *int        `json:"stock_quantity"` // Legacy field for backward compatibility
+	CreatedAt               time.Time   `json:"created_at" db:"created_at"`
+	UpdatedAt               time.Time   `json:"updated_at" db:"updated_at"`
+}
+
+// PublicProduct represents a product for public API (excludes cost_price)
+type PublicProduct struct {
+	ID                      int         `json:"id"`
+	SKU                     string      `json:"sku"`
+	Title                   string      `json:"title"`
+	DescriptionShort        string      `json:"description_short"`
+	DescriptionLong         string      `json:"description_long"`
+	ManufacturerID          int         `json:"manufacturer_id"`
+	StoreType               StoreType   `json:"store_type"`
+	MiniAppType             MiniAppType `json:"mini_app_type"`
+	StoreID                 *int        `json:"store_id"`
+	MainPrice               float64     `json:"main_price"`
+	StrikethroughPrice      *float64    `json:"strikethrough_price"`
+	StockLeft               int         `json:"stock_left"`
+	MinimumOrderQuantity    int         `json:"minimum_order_quantity"`
+	IsActive                bool        `json:"is_active"`
+	IsFeatured              bool        `json:"is_featured"`
+	IsMiniAppRecommendation bool        `json:"is_mini_app_recommendation"`
+	ImageUrls               []string    `json:"image_urls"`
+	CategoryIds             []string    `json:"category_ids"`
+	SubcategoryIds          []string    `json:"subcategory_ids"`
+	StockQuantity           *int        `json:"stock_quantity"`
+	CreatedAt               time.Time   `json:"created_at"`
+	UpdatedAt               time.Time   `json:"updated_at"`
+}
+
+// ToPublicProduct converts a Product to PublicProduct (excludes cost_price)
+func (p *Product) ToPublicProduct() PublicProduct {
+	return PublicProduct{
+		ID:                      p.ID,
+		SKU:                     p.SKU,
+		Title:                   p.Title,
+		DescriptionShort:        p.DescriptionShort,
+		DescriptionLong:         p.DescriptionLong,
+		ManufacturerID:          p.ManufacturerID,
+		StoreType:               p.StoreType,
+		MiniAppType:             p.MiniAppType,
+		StoreID:                 p.StoreID,
+		MainPrice:               p.MainPrice,
+		StrikethroughPrice:      p.StrikethroughPrice,
+		StockLeft:               p.StockLeft,
+		MinimumOrderQuantity:    p.MinimumOrderQuantity,
+		IsActive:                p.IsActive,
+		IsFeatured:              p.IsFeatured,
+		IsMiniAppRecommendation: p.IsMiniAppRecommendation,
+		ImageUrls:               p.ImageUrls,
+		CategoryIds:             p.CategoryIds,
+		SubcategoryIds:          p.SubcategoryIds,
+		StockQuantity:           p.StockQuantity,
+		CreatedAt:               p.CreatedAt,
+		UpdatedAt:               p.UpdatedAt,
+	}
 }
 
 // DisplayStock returns the stock quantity with buffer applied (actual - 5)
 func (p *Product) DisplayStock() *int {
-	if p.StockQuantity == nil {
-		return nil
-	}
-	displayStock := *p.StockQuantity - 5
+	// Use StockLeft field instead of legacy StockQuantity
+	displayStock := p.StockLeft - 5
 	if displayStock < 0 {
 		displayStock = 0
 	}
@@ -174,12 +231,14 @@ type Manufacturer struct {
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// ProductImage represents a product image
+// ProductImage represents a product image with enhanced functionality
 type ProductImage struct {
-	ID           int    `json:"id" db:"image_id"`
-	ProductID    int    `json:"product_id" db:"product_id"`
-	ImageURL     string `json:"image_url" db:"image_url"`
-	DisplayOrder int    `json:"display_order" db:"display_order"`
+	ID           int       `json:"id" db:"image_id"`
+	ProductID    int       `json:"product_id" db:"product_id"`
+	ImageURL     string    `json:"image_url" db:"image_url"`
+	DisplayOrder int       `json:"display_order" db:"display_order"`
+	IsPrimary    bool      `json:"is_primary" db:"is_primary"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
 
 // Inventory represents stock quantity for a product at a specific store

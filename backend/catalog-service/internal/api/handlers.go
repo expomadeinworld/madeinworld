@@ -79,6 +79,16 @@ func (h *Handler) CreateProduct(c *gin.Context) {
 	productID, err := h.db.CreateProduct(ctx, newProduct)
 	if err != nil {
 		log.Printf("Failed to create product in DB: %v", err)
+
+		// Handle specific database errors
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint \"products_sku_key\"") {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":      fmt.Sprintf("SKU '%s' already exists. Please use a different SKU.", newProduct.SKU),
+				"error_code": "DUPLICATE_SKU",
+			})
+			return
+		}
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
 		return
 	}
@@ -277,15 +287,32 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	featured := c.Query("featured")
 	storeID := c.Query("store_id")
 
-	// Build the query
-	query := `
-        SELECT
-            p.product_id, p.sku, p.title, p.description_short, p.description_long,
-            p.manufacturer_id, p.store_type, p.main_price, p.strikethrough_price,
-            p.is_active, p.is_featured, p.created_at, p.updated_at
-        FROM products p
-        WHERE p.is_active = true
-    `
+	// Check if this is an admin request (for internal admin panel use)
+	isAdminRequest := c.GetHeader("X-Admin-Request") == "true"
+
+	// Build the query - include cost_price only for admin requests
+	var query string
+	if isAdminRequest {
+		// Admin requests show ALL products (active and inactive) for complete management
+		query = `
+            SELECT
+                p.product_id, p.sku, p.title, p.description_short, p.description_long,
+                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+            FROM products p
+            WHERE 1=1
+        `
+	} else {
+		// Public requests only show active products
+		query = `
+            SELECT
+                p.product_id, p.sku, p.title, p.description_short, p.description_long,
+                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+            FROM products p
+            WHERE p.is_active = true
+        `
+	}
 
 	args := []interface{}{}
 	argIndex := 1
@@ -321,21 +348,52 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	for rows.Next() {
 		var product models.Product
-		err := rows.Scan(
-			&product.ID,
-			&product.SKU,
-			&product.Title,
-			&product.DescriptionShort,
-			&product.DescriptionLong,
-			&product.ManufacturerID,
-			&product.StoreType,
-			&product.MainPrice,
-			&product.StrikethroughPrice,
-			&product.IsActive,
-			&product.IsFeatured,
-			&product.CreatedAt,
-			&product.UpdatedAt,
-		)
+		var err error
+
+		if isAdminRequest {
+			err = rows.Scan(
+				&product.ID,
+				&product.SKU,
+				&product.Title,
+				&product.DescriptionShort,
+				&product.DescriptionLong,
+				&product.ManufacturerID,
+				&product.StoreType,
+				&product.MiniAppType,
+				&product.StoreID,
+				&product.MainPrice,
+				&product.StrikethroughPrice,
+				&product.CostPrice,
+				&product.StockLeft,
+				&product.MinimumOrderQuantity,
+				&product.IsActive,
+				&product.IsFeatured,
+				&product.IsMiniAppRecommendation,
+				&product.CreatedAt,
+				&product.UpdatedAt,
+			)
+		} else {
+			err = rows.Scan(
+				&product.ID,
+				&product.SKU,
+				&product.Title,
+				&product.DescriptionShort,
+				&product.DescriptionLong,
+				&product.ManufacturerID,
+				&product.StoreType,
+				&product.MiniAppType,
+				&product.StoreID,
+				&product.MainPrice,
+				&product.StrikethroughPrice,
+				&product.StockLeft,
+				&product.MinimumOrderQuantity,
+				&product.IsActive,
+				&product.IsFeatured,
+				&product.IsMiniAppRecommendation,
+				&product.CreatedAt,
+				&product.UpdatedAt,
+			)
+		}
 		if err != nil {
 			log.Printf("Error scanning product: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan product"})
@@ -362,6 +420,16 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			product.CategoryIds = categories
 		}
 
+		// Get product subcategories
+		subcategories, err := h.getProductSubcategories(ctx, product.ID)
+		if err != nil {
+			log.Printf("Error getting product subcategories for product %d: %v", product.ID, err)
+			// Continue without subcategories rather than failing
+			product.SubcategoryIds = []string{}
+		} else {
+			product.SubcategoryIds = subcategories
+		}
+
 		// Get stock quantity for unmanned stores and warehouses
 		if product.StoreType == models.StoreTypeUnmannedStore || product.StoreType == models.StoreTypeUnmannedWarehouse {
 			stockQuantity, err := h.getProductStock(ctx, product.ID, storeID)
@@ -373,7 +441,21 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			}
 		}
 
-		products = append(products, product)
+		if isAdminRequest {
+			products = append(products, product)
+		} else {
+			// Convert to public product (excludes cost_price)
+			publicProducts := make([]models.PublicProduct, 0, len(products)+1)
+			for _, p := range products {
+				publicProducts = append(publicProducts, p.ToPublicProduct())
+			}
+			publicProducts = append(publicProducts, product.ToPublicProduct())
+
+			// Return public products for this iteration
+			if len(products) == 0 {
+				products = append(products, product) // Temporary for processing
+			}
+		}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -382,7 +464,20 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, products)
+	if isAdminRequest {
+		// Ensure we return an empty array instead of null when no products exist
+		if products == nil {
+			products = []models.Product{}
+		}
+		c.JSON(http.StatusOK, products)
+	} else {
+		// Convert all products to public format
+		publicProducts := make([]models.PublicProduct, len(products))
+		for i, product := range products {
+			publicProducts[i] = product.ToPublicProduct()
+		}
+		c.JSON(http.StatusOK, publicProducts)
+	}
 }
 
 // GetProduct handles GET /products/:id
@@ -397,31 +492,76 @@ func (h *Handler) GetProduct(c *gin.Context) {
 		return
 	}
 
-	query := `
-        SELECT
-            p.product_id, p.sku, p.title, p.description_short, p.description_long,
-            p.manufacturer_id, p.store_type, p.main_price, p.strikethrough_price,
-            p.is_active, p.is_featured, p.created_at, p.updated_at
-        FROM products p
-        WHERE p.product_id = $1 AND p.is_active = true
-    `
+	// Check if this is an admin request
+	isAdminRequest := c.GetHeader("X-Admin-Request") == "true"
+
+	var query string
+	if isAdminRequest {
+		query = `
+            SELECT
+                p.product_id, p.sku, p.title, p.description_short, p.description_long,
+                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+            FROM products p
+            WHERE p.product_id = $1 AND p.is_active = true
+        `
+	} else {
+		query = `
+            SELECT
+                p.product_id, p.sku, p.title, p.description_short, p.description_long,
+                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+            FROM products p
+            WHERE p.product_id = $1 AND p.is_active = true
+        `
+	}
 
 	var product models.Product
-	err = h.db.Pool.QueryRow(ctx, query, productID).Scan(
-		&product.ID,
-		&product.SKU,
-		&product.Title,
-		&product.DescriptionShort,
-		&product.DescriptionLong,
-		&product.ManufacturerID,
-		&product.StoreType,
-		&product.MainPrice,
-		&product.StrikethroughPrice,
-		&product.IsActive,
-		&product.IsFeatured,
-		&product.CreatedAt,
-		&product.UpdatedAt,
-	)
+
+	if isAdminRequest {
+		err = h.db.Pool.QueryRow(ctx, query, productID).Scan(
+			&product.ID,
+			&product.SKU,
+			&product.Title,
+			&product.DescriptionShort,
+			&product.DescriptionLong,
+			&product.ManufacturerID,
+			&product.StoreType,
+			&product.MiniAppType,
+			&product.StoreID,
+			&product.MainPrice,
+			&product.StrikethroughPrice,
+			&product.CostPrice,
+			&product.StockLeft,
+			&product.MinimumOrderQuantity,
+			&product.IsActive,
+			&product.IsFeatured,
+			&product.IsMiniAppRecommendation,
+			&product.CreatedAt,
+			&product.UpdatedAt,
+		)
+	} else {
+		err = h.db.Pool.QueryRow(ctx, query, productID).Scan(
+			&product.ID,
+			&product.SKU,
+			&product.Title,
+			&product.DescriptionShort,
+			&product.DescriptionLong,
+			&product.ManufacturerID,
+			&product.StoreType,
+			&product.MiniAppType,
+			&product.StoreID,
+			&product.MainPrice,
+			&product.StrikethroughPrice,
+			&product.StockLeft,
+			&product.MinimumOrderQuantity,
+			&product.IsActive,
+			&product.IsFeatured,
+			&product.IsMiniAppRecommendation,
+			&product.CreatedAt,
+			&product.UpdatedAt,
+		)
+	}
 
 	if err != nil {
 		log.Printf("Error querying product %d: %v", productID, err)
@@ -447,6 +587,15 @@ func (h *Handler) GetProduct(c *gin.Context) {
 		product.CategoryIds = categories
 	}
 
+	// Get product subcategories
+	subcategories, err := h.getProductSubcategories(ctx, product.ID)
+	if err != nil {
+		log.Printf("Error getting product subcategories for product %d: %v", product.ID, err)
+		product.SubcategoryIds = []string{}
+	} else {
+		product.SubcategoryIds = subcategories
+	}
+
 	// Get stock quantity for unmanned stores and warehouses
 	if product.StoreType == models.StoreTypeUnmannedStore || product.StoreType == models.StoreTypeUnmannedWarehouse {
 		storeID := c.Query("store_id")
@@ -458,7 +607,11 @@ func (h *Handler) GetProduct(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, product)
+	if isAdminRequest {
+		c.JSON(http.StatusOK, product)
+	} else {
+		c.JSON(http.StatusOK, product.ToPublicProduct())
+	}
 }
 
 // GetCategories handles GET /categories
@@ -848,6 +1001,32 @@ func (h *Handler) getProductCategories(ctx context.Context, productID int) ([]st
 	}
 
 	return categories, rows.Err()
+}
+
+func (h *Handler) getProductSubcategories(ctx context.Context, productID int) ([]string, error) {
+	query := `
+        SELECT CAST(psm.subcategory_id AS TEXT)
+        FROM product_subcategory_mapping psm
+        WHERE psm.product_id = $1
+        ORDER BY psm.subcategory_id
+    `
+
+	rows, err := h.db.Pool.Query(ctx, query, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subcategories []string
+	for rows.Next() {
+		var subcategoryID string
+		if err := rows.Scan(&subcategoryID); err != nil {
+			return nil, err
+		}
+		subcategories = append(subcategories, subcategoryID)
+	}
+
+	return subcategories, rows.Err()
 }
 
 func (h *Handler) getProductStock(ctx context.Context, productID int, storeID string) (*int, error) {
@@ -1696,4 +1875,289 @@ func saveUploadedFile(file multipart.File, filepath string) error {
 	}
 
 	return nil
+}
+
+// UploadProductImages handles POST /products/:id/images (multiple images)
+func (h *Handler) UploadProductImages(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	productIDStr := c.Param("id")
+	productID, err := strconv.Atoi(productIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	// Parse multipart form
+	err = c.Request.ParseMultipartForm(32 << 20) // 32 MB max
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form"})
+		return
+	}
+
+	files := c.Request.MultipartForm.File["images"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No images provided"})
+		return
+	}
+
+	var uploadedImages []models.ProductImage
+
+	for i, fileHeader := range files {
+		// Validate file type
+		file, err := fileHeader.Open()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to open file"})
+			return
+		}
+		defer file.Close()
+
+		// Read first 512 bytes to detect content type
+		buffer := make([]byte, 512)
+		_, err = file.Read(buffer)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read file"})
+			return
+		}
+
+		contentType := http.DetectContentType(buffer)
+		if !h.isValidImageType(contentType) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed"})
+			return
+		}
+
+		// Reset file pointer
+		file.Seek(0, 0)
+
+		// Generate unique filename
+		filename := fmt.Sprintf("%d_%d_%s", productID, time.Now().UnixNano(), fileHeader.Filename)
+
+		// Save file to uploads directory
+		uploadPath := fmt.Sprintf("uploads/products/%s", filename)
+		if err := h.saveUploadedFile(file, uploadPath); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+			return
+		}
+
+		// Create image URL
+		imageURL := fmt.Sprintf("http://localhost:8080/%s", uploadPath)
+
+		// Get next display order
+		displayOrder := i + 1
+
+		// Check if this should be the primary image (first one if no primary exists)
+		isPrimary := false
+		if i == 0 {
+			// Check if product has any existing images
+			existingImages, _ := h.getProductImagesDetailed(ctx, productID)
+			isPrimary = len(existingImages) == 0
+		}
+
+		// Save to database
+		imageID, err := h.addProductImage(ctx, productID, imageURL, displayOrder, isPrimary)
+		if err != nil {
+			log.Printf("Failed to save image to database: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+			return
+		}
+
+		uploadedImages = append(uploadedImages, models.ProductImage{
+			ID:           imageID,
+			ProductID:    productID,
+			ImageURL:     imageURL,
+			DisplayOrder: displayOrder,
+			IsPrimary:    isPrimary,
+		})
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Images uploaded successfully",
+		"images":  uploadedImages,
+	})
+}
+
+// GetProductImages handles GET /products/:id/images
+func (h *Handler) GetProductImages(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	productIDStr := c.Param("id")
+	productID, err := strconv.Atoi(productIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	images, err := h.getProductImagesDetailed(ctx, productID)
+	if err != nil {
+		log.Printf("Failed to get product images: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get images"})
+		return
+	}
+
+	c.JSON(http.StatusOK, images)
+}
+
+// ReorderProductImages handles PUT /products/:id/images/reorder
+func (h *Handler) ReorderProductImages(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	productIDStr := c.Param("id")
+	productID, err := strconv.Atoi(productIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	var reorderRequest struct {
+		ImageOrders []struct {
+			ImageID      int `json:"image_id"`
+			DisplayOrder int `json:"display_order"`
+		} `json:"image_orders"`
+	}
+
+	if err := c.ShouldBindJSON(&reorderRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Update display orders
+	for _, order := range reorderRequest.ImageOrders {
+		err := h.updateImageDisplayOrder(ctx, productID, order.ImageID, order.DisplayOrder)
+		if err != nil {
+			log.Printf("Failed to update image order: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update image order"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Images reordered successfully"})
+}
+
+// DeleteProductImage handles DELETE /products/:id/images/:image_id
+func (h *Handler) DeleteProductImage(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	productIDStr := c.Param("id")
+	productID, err := strconv.Atoi(productIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	imageIDStr := c.Param("image_id")
+	imageID, err := strconv.Atoi(imageIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image ID"})
+		return
+	}
+
+	err = h.deleteProductImage(ctx, productID, imageID)
+	if err != nil {
+		log.Printf("Failed to delete product image: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Image deleted successfully"})
+}
+
+// SetPrimaryImage handles PUT /products/:id/images/:image_id/primary
+func (h *Handler) SetPrimaryImage(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+
+	productIDStr := c.Param("id")
+	productID, err := strconv.Atoi(productIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
+		return
+	}
+
+	imageIDStr := c.Param("image_id")
+	imageID, err := strconv.Atoi(imageIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image ID"})
+		return
+	}
+
+	err = h.setPrimaryImage(ctx, productID, imageID)
+	if err != nil {
+		log.Printf("Failed to set primary image: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set primary image"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Primary image set successfully"})
+}
+
+// Helper methods for image management
+
+// isValidImageType checks if the content type is a valid image type
+func (h *Handler) isValidImageType(contentType string) bool {
+	validTypes := []string{
+		"image/jpeg",
+		"image/jpg",
+		"image/png",
+		"image/gif",
+		"image/webp",
+	}
+
+	for _, validType := range validTypes {
+		if contentType == validType {
+			return true
+		}
+	}
+	return false
+}
+
+// saveUploadedFile saves an uploaded file to the specified path
+func (h *Handler) saveUploadedFile(file multipart.File, uploadPath string) error {
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(uploadPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %v", err)
+	}
+
+	// Create destination file
+	dst, err := os.Create(uploadPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %v", err)
+	}
+	defer dst.Close()
+
+	// Copy file content
+	if _, err := io.Copy(dst, file); err != nil {
+		return fmt.Errorf("failed to copy file: %v", err)
+	}
+
+	return nil
+}
+
+// addProductImage adds a new image to a product
+func (h *Handler) addProductImage(ctx context.Context, productID int, imageURL string, displayOrder int, isPrimary bool) (int, error) {
+	return h.db.AddProductImage(ctx, productID, imageURL, displayOrder, isPrimary)
+}
+
+// getProductImagesDetailed retrieves all images for a product with full details
+func (h *Handler) getProductImagesDetailed(ctx context.Context, productID int) ([]models.ProductImage, error) {
+	return h.db.GetProductImages(ctx, productID)
+}
+
+// updateImageDisplayOrder updates the display order of a product image
+func (h *Handler) updateImageDisplayOrder(ctx context.Context, productID, imageID, displayOrder int) error {
+	return h.db.UpdateImageDisplayOrder(ctx, productID, imageID, displayOrder)
+}
+
+// deleteProductImage deletes a product image
+func (h *Handler) deleteProductImage(ctx context.Context, productID, imageID int) error {
+	return h.db.DeleteProductImage(ctx, productID, imageID)
+}
+
+// setPrimaryImage sets an image as primary
+func (h *Handler) setPrimaryImage(ctx context.Context, productID, imageID int) error {
+	return h.db.SetPrimaryImage(ctx, productID, imageID)
 }

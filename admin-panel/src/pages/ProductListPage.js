@@ -29,7 +29,6 @@ import {
 import { productService } from '../services/api';
 import ProductForm from '../components/ProductForm';
 import ProductDetailsModal from '../components/ProductDetailsModal';
-import EditProductModal from '../components/EditProductModal';
 import DeleteProductDialog from '../components/DeleteProductDialog';
 import ProductStatusToggle from '../components/ProductStatusToggle';
 
@@ -50,10 +49,13 @@ const ProductListPage = () => {
       setLoading(true);
       setError(null);
       const data = await productService.getProducts();
-      setProducts(data);
+      // Ensure we always have an array, even if API returns null
+      setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError(err.message || 'Failed to load products');
+      // Set empty array on error to prevent null reference errors
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -222,7 +224,7 @@ const ProductListPage = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {products.length === 0 ? (
+                {!products || products.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                       <Box sx={{ textAlign: 'center' }}>
@@ -237,20 +239,38 @@ const ProductListPage = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  products.map((product) => (
-                    <TableRow key={product.id} hover>
+                  (products || []).map((product) => (
+                    <TableRow
+                      key={product.id}
+                      hover
+                      sx={{
+                        opacity: product.is_active ? 1 : 0.6,
+                        backgroundColor: product.is_active ? 'inherit' : 'action.hover'
+                      }}
+                    >
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar
                             src={product.image_urls?.[0]}
                             alt={product.title}
-                            sx={{ width: 48, height: 48 }}
+                            sx={{
+                              width: 48,
+                              height: 48,
+                              filter: product.is_active ? 'none' : 'grayscale(50%)'
+                            }}
                             variant="rounded"
                           >
                             <StoreIcon />
                           </Avatar>
                           <Box>
-                            <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                            <Typography
+                              variant="body1"
+                              sx={{
+                                fontWeight: 500,
+                                textDecoration: product.is_active ? 'none' : 'line-through',
+                                color: product.is_active ? 'text.primary' : 'text.secondary'
+                              }}
+                            >
                               {product.title}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
@@ -323,9 +343,9 @@ const ProductListPage = () => {
                       </TableCell>
                       
                       <TableCell>
-                        {product.store_type?.toLowerCase() === 'unmanned' ? (
+                        {(product.store_type === '无人门店' || product.store_type === '无人仓店' || product.store_type?.toLowerCase() === 'unmanned') ? (
                           <Typography variant="body2">
-                            {product.stock_quantity || 0} units
+                            {product.stock_left || 0} units
                           </Typography>
                         ) : (
                           <Typography variant="body2" color="text.secondary">
@@ -404,7 +424,7 @@ const ProductListPage = () => {
       />
 
       {/* Edit Product Modal */}
-      <EditProductModal
+      <ProductForm
         open={editModalOpen}
         onClose={handleCloseModals}
         product={selectedProduct}

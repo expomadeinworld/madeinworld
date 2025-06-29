@@ -6,6 +6,7 @@ const api = axios.create({
   timeout: 10000, // 10 seconds timeout
   headers: {
     'Content-Type': 'application/json',
+    'X-Admin-Request': 'true', // Mark all requests as admin requests
   },
 });
 
@@ -41,6 +42,8 @@ api.interceptors.response.use(
           throw new Error(data.error || 'Bad request');
         case 404:
           throw new Error('Resource not found');
+        case 409:
+          throw new Error(data.error || 'Conflict - resource already exists');
         case 500:
           throw new Error('Internal server error');
         default:
@@ -112,6 +115,25 @@ export const categoryService = {
     return response.data;
   },
 
+  // Get categories by mini-app type and store (for dynamic filtering)
+  getCategoriesByMiniApp: async (miniAppType, storeId = null) => {
+    const params = {
+      mini_app_type: miniAppType,
+      include_subcategories: true
+    };
+    if (storeId) {
+      params.store_id = storeId;
+    }
+    const response = await api.get('/categories', { params });
+    return response.data;
+  },
+
+  // Get subcategories for a specific category
+  getSubcategories: async (categoryId) => {
+    const response = await api.get(`/categories/${categoryId}/subcategories`);
+    return response.data;
+  },
+
   // Get single category by ID
   getCategory: async (id) => {
     const response = await api.get(`/categories/${id}`);
@@ -128,6 +150,20 @@ export const categoryService = {
 export const storeService = {
   // Get all stores
   getStores: async (params = {}) => {
+    const response = await api.get('/stores', { params });
+    return response.data;
+  },
+
+  // Get stores by mini-app type (for dynamic filtering)
+  getStoresByMiniApp: async (miniAppType) => {
+    const params = { mini_app_type: miniAppType };
+    const response = await api.get('/stores', { params });
+    return response.data;
+  },
+
+  // Get stores by specific store type
+  getStoresByType: async (storeType) => {
+    const params = { type: storeType };
     const response = await api.get('/stores', { params });
     return response.data;
   },

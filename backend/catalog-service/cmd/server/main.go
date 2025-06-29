@@ -83,6 +83,11 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 		v1.PUT("/products/:id", handler.UpdateProduct)
 		v1.DELETE("/products/:id", handler.DeleteProduct)
 		v1.POST("/products/:id/image", handler.UploadProductImage)
+		v1.POST("/products/:id/images", handler.UploadProductImages)
+		v1.GET("/products/:id/images", handler.GetProductImages)
+		v1.PUT("/products/:id/images/reorder", handler.ReorderProductImages)
+		v1.DELETE("/products/:id/images/:image_id", handler.DeleteProductImage)
+		v1.PUT("/products/:id/images/:image_id/primary", handler.SetPrimaryImage)
 
 		// Category endpoints
 		v1.GET("/categories", handler.GetCategories)
@@ -122,7 +127,7 @@ func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

@@ -113,7 +113,7 @@ const ProductDetailsModal = ({ open, onClose, product }) => {
                 {getStoreTypeChip(product.store_type)}
                 {getStatusChip(product.is_active)}
                 {/* Only show featured chip for unmanned stores */}
-                {product.store_type?.toLowerCase() === 'unmanned' && product.is_featured && (
+                {(product.store_type === '无人门店' || product.store_type === '无人仓店' || product.store_type?.toLowerCase() === 'unmanned') && product.is_featured && (
                   <Chip
                     label="热门推荐 Featured"
                     size="medium"
@@ -151,7 +151,7 @@ const ProductDetailsModal = ({ open, onClose, product }) => {
               </Box>
 
               {/* Stock Information */}
-              {product.store_type?.toLowerCase() === 'unmanned' && (
+              {(product.store_type === '无人门店' || product.store_type === '无人仓店' || product.store_type?.toLowerCase() === 'unmanned') && (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                     <InventoryIcon color="primary" />
@@ -160,7 +160,7 @@ const ProductDetailsModal = ({ open, onClose, product }) => {
                     </Typography>
                   </Box>
                   <Typography variant="body1">
-                    {product.stock_quantity || 0} units available
+                    {product.stock_left || 0} units available
                   </Typography>
                 </Box>
               )}

@@ -39,8 +39,8 @@ const DashboardPage = () => {
         ]);
 
         setStats({
-          totalProducts: productsData.length || 0,
-          totalStores: storesData.length || 0,
+          totalProducts: (productsData && productsData.length) || 0,
+          totalStores: (storesData && storesData.length) || 0,
           revenue: 12450.75, // Mock data for now
           orders: 156, // Mock data for now
         });

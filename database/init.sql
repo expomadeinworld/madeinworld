@@ -78,10 +78,14 @@ CREATE TABLE products (
     description_long TEXT,
     manufacturer_id INTEGER NOT NULL REFERENCES manufacturers(manufacturer_id),
     store_type store_type NOT NULL,
+    mini_app_type mini_app_type,
+    store_id INTEGER REFERENCES stores(store_id) ON DELETE SET NULL,
     main_price DECIMAL(10, 2) NOT NULL,
     strikethrough_price DECIMAL(10, 2),
+    stock_left INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,
+    is_mini_app_recommendation BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

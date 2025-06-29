@@ -10,6 +10,10 @@ import {
   Alert,
   CircularProgress,
   Avatar,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
 } from '@mui/material';
 import {
   Warning as WarningIcon,
@@ -19,25 +23,32 @@ import { productService } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 
 const DeleteProductDialog = ({ open, onClose, product, onProductDeleted }) => {
-  const { showSuccess, showError } = useToast();
+  const { showSuccess } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [deleteType, setDeleteType] = useState('soft'); // 'soft' or 'hard'
 
   const handleDelete = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Call the real API to delete the product (soft delete)
-      await productService.deleteProduct(product.id);
-      console.log('Product deleted successfully:', product.id);
+      const isHardDelete = deleteType === 'hard';
 
-      showSuccess(`Product "${product.title}" deleted successfully!`);
+      // Call the API with appropriate delete type
+      await productService.deleteProduct(product.id, isHardDelete);
+      console.log(`Product ${isHardDelete ? 'permanently' : 'soft'} deleted successfully:`, product.id);
+
+      const message = isHardDelete
+        ? `Product "${product.title}" permanently deleted! SKU "${product.sku}" is now available for reuse.`
+        : `Product "${product.title}" deactivated successfully!`;
+
+      showSuccess(message);
 
       // Notify parent component and close dialog
       onProductDeleted();
       onClose();
-      
+
     } catch (err) {
       console.error('Error deleting product:', err);
       setError(err.message || 'Failed to delete product');
@@ -106,18 +117,55 @@ const DeleteProductDialog = ({ open, onClose, product, onProductDeleted }) => {
 
           <Alert severity="warning" sx={{ textAlign: 'left', mb: 2 }}>
             <Typography variant="body2">
-              <strong>Warning:</strong> This action cannot be undone. Deleting this product will:
+              <strong>Warning:</strong> Choose your deletion method carefully:
             </Typography>
-            <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
-              <li>Remove the product from all store listings</li>
-              <li>Delete all associated images and data</li>
-              <li>Remove it from customer carts and wishlists</li>
-              <li>Affect any ongoing orders or inventory tracking</li>
-            </Box>
           </Alert>
 
+          {/* Delete Type Selection */}
+          <Box sx={{ textAlign: 'left', mb: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+              Deletion Method:
+            </Typography>
+
+            <FormControl component="fieldset">
+              <RadioGroup
+                value={deleteType}
+                onChange={(e) => setDeleteType(e.target.value)}
+              >
+                <FormControlLabel
+                  value="soft"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        Deactivate Product (Recommended)
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Hides product from customers but preserves data and SKU reservation
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <FormControlLabel
+                  value="hard"
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: 'error.main' }}>
+                        Permanently Delete (Irreversible)
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Completely removes product and frees SKU "{product.sku}" for reuse
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
+          </Box>
+
           <Typography variant="body1" sx={{ fontWeight: 500 }}>
-            Are you sure you want to delete this product?
+            Are you sure you want to {deleteType === 'hard' ? 'permanently delete' : 'deactivate'} this product?
           </Typography>
         </Box>
       </DialogContent>
@@ -143,7 +191,10 @@ const DeleteProductDialog = ({ open, onClose, product, onProductDeleted }) => {
             }
           }}
         >
-          {loading ? 'Deleting...' : 'Delete Product'}
+          {loading
+            ? (deleteType === 'hard' ? 'Permanently Deleting...' : 'Deactivating...')
+            : (deleteType === 'hard' ? 'Permanently Delete' : 'Deactivate Product')
+          }
         </Button>
       </DialogActions>
     </Dialog>
