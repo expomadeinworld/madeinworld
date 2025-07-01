@@ -41,29 +41,12 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
         ),
         backgroundColor: AppColors.lightBackground,
         elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(
-            Icons.arrow_back,
-            color: AppColors.primaryText,
-          ),
-        ),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: () {
-              // Search
-            },
+            onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(
-              Icons.search,
-              color: AppColors.primaryText,
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              // Notifications
-            },
-            icon: const Icon(
-              Icons.notifications_outlined,
+              Icons.close,
               color: AppColors.primaryText,
             ),
           ),
@@ -281,8 +264,12 @@ class _ProductsTabState extends State<_ProductsTab> {
           final allProducts = snapshot.data![1] as List<Product>;
           final filteredProducts = _selectedCategoryId == null
               ? allProducts
-              : allProducts.where((product) =>
-                  product.categoryIds.contains(_selectedCategoryId)).toList();
+              : _selectedCategoryId == 'featured'
+                  ? allProducts.where((product) =>
+                      product.isMiniAppRecommendation &&
+                      product.miniAppType == MiniAppType.retailStore).toList()
+                  : allProducts.where((product) =>
+                      product.categoryIds.contains(_selectedCategoryId)).toList();
 
           return Column(
             children: [
@@ -293,29 +280,15 @@ class _ProductsTabState extends State<_ProductsTab> {
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: categories.length + 1, // +1 for "All" category
+                  itemCount: _buildCategoriesWithFeatured(categories, allProducts).length,
                   itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return CategoryChip(
-                        category: Category(
-                          id: 'featured',
-                          name: '推荐',
-                          storeTypeAssociation: StoreTypeAssociation.all,
-                          miniAppAssociation: [],
-                        ),
-                        isSelected: _selectedCategoryId == null || _selectedCategoryId == 'featured',
-                        onTap: () {
-                          setState(() {
-                            _selectedCategoryId = 'featured';
-                          });
-                        },
-                      );
-                    }
+                    final displayCategories = _buildCategoriesWithFeatured(categories, allProducts);
+                    final category = displayCategories[index];
 
-                    final category = categories[index - 1];
                     return CategoryChip(
                       category: category,
-                      isSelected: _selectedCategoryId == category.id,
+                      isSelected: _selectedCategoryId == category.id ||
+                          (_selectedCategoryId == null && category.id == 'featured'),
                       onTap: () {
                         setState(() {
                           _selectedCategoryId = category.id;
@@ -355,6 +328,34 @@ class _ProductsTabState extends State<_ProductsTab> {
         }
       },
     );
+  }
+
+  /// Builds a list of categories with featured category, ensuring no duplicates
+  List<Category> _buildCategoriesWithFeatured(List<Category> apiCategories, List<Product> allProducts) {
+    final List<Category> result = [];
+
+    // Check if there are any mini-app recommended products for retail store
+    final hasFeaturedProducts = allProducts.any((product) =>
+        product.isMiniAppRecommendation && product.miniAppType == MiniAppType.retailStore);
+
+    // Always add featured category first if there are featured products
+    if (hasFeaturedProducts) {
+      result.add(Category(
+        id: 'featured',
+        name: '推荐',
+        storeTypeAssociation: StoreTypeAssociation.all,
+        miniAppAssociation: [],
+      ));
+    }
+
+    // Add all API categories except any "推荐" categories (to avoid duplicates)
+    for (final category in apiCategories) {
+      if (category.name != '推荐' && category.id != 'featured') {
+        result.add(category);
+      }
+    }
+
+    return result;
   }
 }
 

@@ -291,15 +291,24 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	isAdminRequest := c.GetHeader("X-Admin-Request") == "true"
 
 	// Build the query - include cost_price only for admin requests
+	// For location-dependent mini-apps (UnmannedStore, ExhibitionSales), we need to JOIN with stores table
+	// to get the actual store type from the associated store
 	var query string
 	if isAdminRequest {
 		// Admin requests show ALL products (active and inactive) for complete management
 		query = `
             SELECT
                 p.product_id, p.sku, p.title, p.description_short, p.description_long,
-                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.manufacturer_id,
+                CASE
+                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+                    THEN s.type
+                    ELSE p.store_type
+                END as store_type,
+                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
                 p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
             FROM products p
+            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
             WHERE 1=1
         `
 	} else {
@@ -307,9 +316,16 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		query = `
             SELECT
                 p.product_id, p.sku, p.title, p.description_short, p.description_long,
-                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.manufacturer_id,
+                CASE
+                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+                    THEN s.type
+                    ELSE p.store_type
+                END as store_type,
+                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
                 p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
             FROM products p
+            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
             WHERE p.is_active = true
         `
 	}
@@ -441,21 +457,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 			}
 		}
 
-		if isAdminRequest {
-			products = append(products, product)
-		} else {
-			// Convert to public product (excludes cost_price)
-			publicProducts := make([]models.PublicProduct, 0, len(products)+1)
-			for _, p := range products {
-				publicProducts = append(publicProducts, p.ToPublicProduct())
-			}
-			publicProducts = append(publicProducts, product.ToPublicProduct())
-
-			// Return public products for this iteration
-			if len(products) == 0 {
-				products = append(products, product) // Temporary for processing
-			}
-		}
+		// Add product to the list regardless of admin/public request
+		// The conversion to public format will happen later
+		products = append(products, product)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -500,18 +504,32 @@ func (h *Handler) GetProduct(c *gin.Context) {
 		query = `
             SELECT
                 p.product_id, p.sku, p.title, p.description_short, p.description_long,
-                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.manufacturer_id,
+                CASE
+                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+                    THEN s.type
+                    ELSE p.store_type
+                END as store_type,
+                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
                 p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
             FROM products p
+            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
             WHERE p.product_id = $1 AND p.is_active = true
         `
 	} else {
 		query = `
             SELECT
                 p.product_id, p.sku, p.title, p.description_short, p.description_long,
-                p.manufacturer_id, p.store_type, p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+                p.manufacturer_id,
+                CASE
+                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+                    THEN s.type
+                    ELSE p.store_type
+                END as store_type,
+                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
                 p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
             FROM products p
+            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
             WHERE p.product_id = $1 AND p.is_active = true
         `
 	}

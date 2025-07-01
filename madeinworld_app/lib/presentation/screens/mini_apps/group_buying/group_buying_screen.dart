@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -12,8 +11,6 @@ import '../../../../core/enums/store_type.dart';
 import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
-import '../../../providers/cart_provider.dart';
-import '../../cart/cart_screen.dart';
 
 class GroupBuyingScreen extends StatefulWidget {
   const GroupBuyingScreen({super.key});
@@ -24,7 +21,7 @@ class GroupBuyingScreen extends StatefulWidget {
 
 class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
   int _currentIndex = 0;
-  
+
   final List<Widget> _screens = [
     const _ProductsTab(),
     const _GroupsTab(),
@@ -36,106 +33,23 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '团购团批',
-          style: AppTextStyles.majorHeader,
-        ),
+        title: Text('团购团批', style: AppTextStyles.majorHeader),
         backgroundColor: AppColors.lightBackground,
         elevation: 0,
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(
-            Icons.arrow_back,
-            color: AppColors.primaryText,
-          ),
-        ),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: () {
-              // Search functionality
-            },
-            icon: const Icon(
-              Icons.search,
-              color: AppColors.primaryText,
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              // Notifications
-            },
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.primaryText,
-            ),
-          ),
-          Consumer<CartProvider>(
-            builder: (context, cartProvider, child) {
-              return Stack(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const CartScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.shopping_cart_outlined,
-                      color: AppColors.primaryText,
-                    ),
-                  ),
-                  if (cartProvider.itemCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: AppColors.themeRed,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          '${cartProvider.itemCount}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          IconButton(
-            onPressed: () {
-              // QR Scanner
-            },
-            icon: const Icon(
-              Icons.qr_code_scanner,
-              color: AppColors.primaryText,
-            ),
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close, color: AppColors.primaryText),
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
           border: Border(
-            top: BorderSide(
-              color: Colors.grey.shade200,
-              width: 1,
-            ),
+            top: BorderSide(color: Colors.grey.shade200, width: 1),
           ),
         ),
         child: SafeArea(
@@ -153,15 +67,11 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
                         icon: Icons.shopping_basket,
                         label: '团购',
                       ),
-                      _buildNavItem(
-                        index: 1,
-                        icon: Icons.group,
-                        label: '团组',
-                      ),
+                      _buildNavItem(index: 1, icon: Icons.group, label: '团组'),
                     ],
                   ),
                 ),
-                
+
                 // Center floating action button
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -170,28 +80,17 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
                       // Create new group buying
                     },
                     backgroundColor: AppColors.themeRed,
-                    child: const Icon(
-                      Icons.add,
-                      color: Colors.white,
-                    ),
+                    child: const Icon(Icons.add, color: Colors.white),
                   ),
                 ),
-                
+
                 // Right nav items
                 Expanded(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildNavItem(
-                        index: 2,
-                        icon: Icons.message,
-                        label: '消息',
-                      ),
-                      _buildNavItem(
-                        index: 3,
-                        icon: Icons.person,
-                        label: '我的',
-                      ),
+                      _buildNavItem(index: 2, icon: Icons.message, label: '消息'),
+                      _buildNavItem(index: 3, icon: Icons.person, label: '我的'),
                     ],
                   ),
                 ),
@@ -209,7 +108,7 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
     required String label,
   }) {
     final isSelected = _currentIndex == index;
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -229,7 +128,9 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
             const SizedBox(height: 4),
             Text(
               label,
-              style: isSelected ? AppTextStyles.navActive : AppTextStyles.navInactive,
+              style: isSelected
+                  ? AppTextStyles.navActive
+                  : AppTextStyles.navInactive,
             ),
           ],
         ),
@@ -296,10 +197,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                     color: AppColors.secondaryText,
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    '加载失败',
-                    style: AppTextStyles.body,
-                  ),
+                  Text('加载失败', style: AppTextStyles.body),
                   const SizedBox(height: 8),
                   Text(
                     '${snapshot.error}',
@@ -318,11 +216,24 @@ class _ProductsTabState extends State<_ProductsTab> {
             final categories = snapshot.data![0] as List<Category>;
             final products = snapshot.data![1] as List<Product>;
 
+            // Check if there are any mini-app recommended products for group buying
+            final hasRecommendedProducts = products.any((product) =>
+                product.isMiniAppRecommendation && product.miniAppType == MiniAppType.groupBuying);
+
+            // Build categories list with featured category if there are recommended products
+            final displayCategories = _buildCategoriesWithFeatured(categories, hasRecommendedProducts);
+
             // Filter products by selected category
-            final filteredProducts = _selectedCategoryId == null
-                ? products
-                : products.where((product) => 
-                    product.categoryIds.contains(_selectedCategoryId)).toList();
+            final filteredProducts = _selectedCategoryId == null || _selectedCategoryId == 'featured'
+                ? products.where((product) =>
+                    product.isMiniAppRecommendation &&
+                    product.miniAppType == MiniAppType.groupBuying).toList()
+                : products
+                      .where(
+                        (product) =>
+                            product.categoryIds.contains(_selectedCategoryId),
+                      )
+                      .toList();
 
             return Column(
               children: [
@@ -333,29 +244,13 @@ class _ProductsTabState extends State<_ProductsTab> {
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: categories.length + 1, // +1 for "All" category
+                    itemCount: displayCategories.length,
                     itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return CategoryChip(
-                          category: Category(
-                            id: 'featured',
-                            name: '推荐',
-                            storeTypeAssociation: StoreTypeAssociation.all,
-                            miniAppAssociation: [],
-                          ),
-                          isSelected: _selectedCategoryId == null || _selectedCategoryId == 'featured',
-                          onTap: () {
-                            setState(() {
-                              _selectedCategoryId = 'featured';
-                            });
-                          },
-                        );
-                      }
-                      
-                      final category = categories[index - 1];
+                      final category = displayCategories[index];
                       return CategoryChip(
                         category: category,
-                        isSelected: _selectedCategoryId == category.id,
+                        isSelected: _selectedCategoryId == category.id ||
+                            (_selectedCategoryId == null && category.id == 'featured'),
                         onTap: () {
                           setState(() {
                             _selectedCategoryId = category.id;
@@ -389,13 +284,35 @@ class _ProductsTabState extends State<_ProductsTab> {
               ],
             );
           } else {
-            return const Center(
-              child: Text('暂无数据'),
-            );
+            return const Center(child: Text('暂无数据'));
           }
         },
       ),
     );
+  }
+
+  /// Builds a list of categories with featured category, ensuring no duplicates
+  List<Category> _buildCategoriesWithFeatured(List<Category> apiCategories, bool hasRecommendedProducts) {
+    final List<Category> result = [];
+
+    // Always add featured category first if there are recommended products
+    if (hasRecommendedProducts) {
+      result.add(Category(
+        id: 'featured',
+        name: '推荐',
+        storeTypeAssociation: StoreTypeAssociation.all,
+        miniAppAssociation: [],
+      ));
+    }
+
+    // Add all API categories except any "推荐" categories (to avoid duplicates)
+    for (final category in apiCategories) {
+      if (category.name != '推荐' && category.id != 'featured') {
+        result.add(category);
+      }
+    }
+
+    return result;
   }
 }
 
@@ -404,9 +321,7 @@ class _GroupsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('团购组织功能开发中...'),
-    );
+    return const Center(child: Text('团购组织功能开发中...'));
   }
 }
 
@@ -415,9 +330,7 @@ class _MessagesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('消息功能开发中...'),
-    );
+    return const Center(child: Text('消息功能开发中...'));
   }
 }
 
@@ -426,8 +339,6 @@ class _ProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('个人中心功能开发中...'),
-    );
+    return const Center(child: Text('个人中心功能开发中...'));
   }
 }

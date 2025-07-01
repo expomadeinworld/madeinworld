@@ -74,13 +74,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // Method to refresh featured products
   Future<void> _refreshFeaturedProducts() async {
     setState(() {
-      _featuredProductsFuture = _apiService.fetchProducts(featured: true);
+      _featuredProductsFuture = _apiService.fetchProducts(featured: true).then((products) {
+        debugPrint('DEBUG: Fetched ${products.length} featured products');
+        for (int i = 0; i < products.length && i < 5; i++) {
+          debugPrint('DEBUG: Featured product $i: ${products[i].title}');
+        }
+        return products;
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: Stack(
         children: [
@@ -93,46 +98,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onRefresh: _refreshFeaturedProducts,
               color: AppColors.themeRed,
               child: SingleChildScrollView(
-                padding: EdgeInsets.only(bottom: ResponsiveUtils.getResponsiveSpacing(context, 24)),
-                physics: const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even with short content
+                padding: EdgeInsets.only(
+                  bottom: ResponsiveUtils.getResponsiveSpacing(context, 24),
+                ),
+                physics:
+                    const AlwaysScrollableScrollPhysics(), // Ensures pull-to-refresh works even with short content
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                  // Header Section
-                  _buildHeader(context),
+                    // Header Section
+                    _buildHeader(context),
 
-                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                    SizedBox(
+                      height: ResponsiveUtils.getResponsiveSpacing(context, 16),
+                    ),
 
-                  // Search Bar Section
-                  _buildSearchBar(context),
+                    // Search Bar Section
+                    _buildSearchBar(context),
 
-                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 24)),
+                    SizedBox(
+                      height: ResponsiveUtils.getResponsiveSpacing(context, 24),
+                    ),
 
-                  // Service Modules Grid
-                  _buildServiceModules(context),
+                    // Service Modules Grid
+                    _buildServiceModules(context),
 
-                  SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 32)),
+                    SizedBox(
+                      height: ResponsiveUtils.getResponsiveSpacing(context, 32),
+                    ),
 
-                  // Hot Recommendations Section with FutureBuilder
-                  FutureBuilder<List<Product>>(
-                    future: _featuredProductsFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return _buildLoadingRecommendations(context);
-                      } else if (snapshot.hasError) {
-                        return _buildErrorRecommendations(context, snapshot.error.toString());
-                      } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                        return _buildHotRecommendations(context, snapshot.data!);
-                      } else {
-                        return _buildEmptyRecommendations(context);
-                      }
-                    },
-                  ),
-                ],
+                    // Hot Recommendations Section with FutureBuilder
+                    FutureBuilder<List<Product>>(
+                      future: _featuredProductsFuture,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return _buildLoadingRecommendations(context);
+                        } else if (snapshot.hasError) {
+                          return _buildErrorRecommendations(
+                            context,
+                            snapshot.error.toString(),
+                          );
+                        } else if (snapshot.hasData &&
+                            snapshot.data!.isNotEmpty) {
+                          return _buildHotRecommendations(
+                            context,
+                            snapshot.data!,
+                          );
+                        } else {
+                          return _buildEmptyRecommendations(context);
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         ],
       ),
     );
@@ -140,7 +162,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, 16)),
+      padding: EdgeInsets.all(
+        ResponsiveUtils.getResponsiveSpacing(context, 16),
+      ),
       child: Consumer<LocationProvider>(
         builder: (context, locationProvider, child) {
           return Row(
@@ -154,7 +178,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       color: AppColors.themeRed,
                       size: ResponsiveUtils.getResponsiveSpacing(context, 24),
                     ),
-                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, 8)),
+                    SizedBox(
+                      width: ResponsiveUtils.getResponsiveSpacing(context, 8),
+                    ),
 
                     // City name with automatic loading state
                     if (locationProvider.isLoading)
@@ -172,7 +198,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         style: AppTextStyles.responsiveLocationCity(context),
                       ),
 
-                    SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, 8)),
+                    SizedBox(
+                      width: ResponsiveUtils.getResponsiveSpacing(context, 8),
+                    ),
 
                     // Store selector with loading state
                     GestureDetector(
@@ -182,8 +210,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       },
                       child: Container(
                         padding: EdgeInsets.symmetric(
-                          horizontal: ResponsiveUtils.getResponsiveSpacing(context, 12),
-                          vertical: ResponsiveUtils.getResponsiveSpacing(context, 6),
+                          horizontal: ResponsiveUtils.getResponsiveSpacing(
+                            context,
+                            12,
+                          ),
+                          vertical: ResponsiveUtils.getResponsiveSpacing(
+                            context,
+                            6,
+                          ),
                         ),
                         decoration: BoxDecoration(
                           color: AppColors.lightRed,
@@ -204,9 +238,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             else
                               Text(
                                 locationProvider.displayStoreName,
-                                style: AppTextStyles.responsiveLocationStore(context),
+                                style: AppTextStyles.responsiveLocationStore(
+                                  context,
+                                ),
                               ),
-                            SizedBox(width: ResponsiveUtils.getResponsiveSpacing(context, 4)),
+                            SizedBox(
+                              width: ResponsiveUtils.getResponsiveSpacing(
+                                context,
+                                4,
+                              ),
+                            ),
                             Icon(
                               Icons.chevron_right,
                               color: AppColors.themeRed,
@@ -267,9 +308,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // QR Scanner button
           GestureDetector(
             onTap: () {
@@ -316,7 +357,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         'icon': Icons.storefront,
         'color': AppColors.purpleModule,
         'bgColor': AppColors.purpleModuleBg,
-        'onTap': () => _navigateToMiniApp(context, const ExhibitionSalesScreen()),
+        'onTap': () =>
+            _navigateToMiniApp(context, const ExhibitionSalesScreen()),
       },
       {
         'title': '团购团批',
@@ -328,7 +370,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ];
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+      ),
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -356,7 +400,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -390,19 +437,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildHotRecommendations(BuildContext context, List<dynamic> products) {
+  Widget _buildHotRecommendations(
+    BuildContext context,
+    List<Product> products,
+  ) {
+    debugPrint('DEBUG: _buildHotRecommendations called with ${products.length} products');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '热门推荐',
-                style: AppTextStyles.responsiveMajorHeader(context),
-              ),
+              Text('热门推荐', style: AppTextStyles.responsiveMajorHeader(context)),
               GestureDetector(
                 onTap: () {
                   // Navigate to see all products
@@ -422,7 +472,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
 
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: MasonryGridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -449,7 +501,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Text(
             '热门推荐',
             style: AppTextStyles.responsiveMajorHeader(context),
@@ -457,19 +511,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Center(
             child: Column(
               children: [
-                CircularProgressIndicator(
-                  color: AppColors.themeRed,
+                CircularProgressIndicator(color: AppColors.themeRed),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context, 16),
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
                 Text(
                   '正在加载推荐商品...',
-                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.responsiveBodySmall(
+                    context,
+                  ).copyWith(color: AppColors.secondaryText),
                 ),
               ],
             ),
@@ -484,7 +540,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Text(
             '热门推荐',
             style: AppTextStyles.responsiveMajorHeader(context),
@@ -492,7 +550,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Center(
             child: Column(
               children: [
@@ -501,7 +561,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   size: 48,
                   color: AppColors.secondaryText,
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context, 16),
+                ),
                 Text(
                   '加载失败',
                   style: AppTextStyles.responsiveBodySmall(context).copyWith(
@@ -510,19 +572,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     fontSize: 16,
                   ),
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 8)),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context, 8),
+                ),
                 Text(
                   '请检查网络连接后重试',
-                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.responsiveBodySmall(
+                    context,
+                  ).copyWith(color: AppColors.secondaryText),
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context, 16),
+                ),
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _featuredProductsFuture = _apiService.fetchProducts(featured: true);
+                      _featuredProductsFuture = _apiService.fetchProducts(
+                        featured: true,
+                      );
                     });
                   },
                   style: ElevatedButton.styleFrom(
@@ -547,7 +615,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Text(
             '热门推荐',
             style: AppTextStyles.responsiveMajorHeader(context),
@@ -555,7 +625,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+          padding: EdgeInsets.symmetric(
+            horizontal: ResponsiveUtils.getResponsiveSpacing(context, 16),
+          ),
           child: Center(
             child: Column(
               children: [
@@ -564,7 +636,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   size: 48,
                   color: AppColors.secondaryText,
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 16)),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context, 16),
+                ),
                 Text(
                   '暂无推荐商品',
                   style: AppTextStyles.responsiveBodySmall(context).copyWith(
@@ -573,12 +647,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     fontSize: 16,
                   ),
                 ),
-                SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 8)),
+                SizedBox(
+                  height: ResponsiveUtils.getResponsiveSpacing(context, 8),
+                ),
                 Text(
                   '请稍后再试或浏览其他商品',
-                  style: AppTextStyles.responsiveBodySmall(context).copyWith(
-                    color: AppColors.secondaryText,
-                  ),
+                  style: AppTextStyles.responsiveBodySmall(
+                    context,
+                  ).copyWith(color: AppColors.secondaryText),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -594,36 +670,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => miniApp,
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          // Slide-away transition: current screen slides out to the right
-          // revealing the new screen underneath
-
-          // New screen fades in gently underneath
-          var fadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(
-            CurvedAnimation(
+          // Only animate the mini-app sliding up from bottom
+          // The super app main page stays fixed underneath
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.0, 1.0), // Start from bottom
+              end: Offset.zero, // End at normal position
+            ).animate(CurvedAnimation(
               parent: animation,
               curve: Curves.easeInOut,
-            ),
-          );
-
-          // Current screen slides out to the right when going back
-          var slideOut = Tween<Offset>(
-            begin: Offset.zero,
-            end: const Offset(1.0, 0.0), // Slide out to the right
-          ).animate(
-            CurvedAnimation(
-              parent: secondaryAnimation,
-              curve: Curves.easeInOut,
-            ),
-          );
-
-          return SlideTransition(
-            position: slideOut,
-            child: FadeTransition(
-              opacity: fadeIn,
-              child: child,
-            ),
+            )),
+            child: child,
           );
         },
+        // Ensure the background (super app) doesn't move
+        opaque: false,
+        barrierColor: Colors.transparent,
         transitionDuration: const Duration(milliseconds: 300),
         reverseTransitionDuration: const Duration(milliseconds: 300),
       ),

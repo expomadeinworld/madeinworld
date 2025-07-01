@@ -1,4 +1,5 @@
 import '../../core/enums/store_type.dart';
+import '../../core/enums/mini_app_type.dart';
 
 class Product {
   final String id;
@@ -8,10 +9,12 @@ class Product {
   final String descriptionLong;
   final String manufacturerId;
   final StoreType storeType;
+  final MiniAppType miniAppType;
   final double mainPrice;
   final double? strikethroughPrice;
   final bool isActive;
   final bool isFeatured;
+  final bool isMiniAppRecommendation;
   final List<String> imageUrls;
   final List<String> categoryIds;
   final List<String> subcategoryIds;
@@ -25,10 +28,12 @@ class Product {
     required this.descriptionLong,
     required this.manufacturerId,
     required this.storeType,
+    required this.miniAppType,
     required this.mainPrice,
     this.strikethroughPrice,
     this.isActive = true,
     this.isFeatured = false,
+    this.isMiniAppRecommendation = false,
     required this.imageUrls,
     required this.categoryIds,
     this.subcategoryIds = const [],
@@ -77,6 +82,27 @@ class Product {
     }
   }
 
+  // Helper method to safely parse mini app type from API response
+  static MiniAppType _parseMiniAppType(dynamic miniAppTypeValue) {
+    if (miniAppTypeValue == null) return MiniAppType.retailStore; // Default fallback
+
+    final miniAppTypeStr = miniAppTypeValue.toString();
+
+    try {
+      return MiniAppTypeExtension.fromApiValue(miniAppTypeStr);
+    } catch (e) {
+      // Fallback: try enum name matching
+      try {
+        return MiniAppType.values.firstWhere(
+          (e) => e.toString().split('.').last.toLowerCase() == miniAppTypeStr.toLowerCase(),
+        );
+      } catch (e) {
+        // Ultimate fallback
+        return MiniAppType.retailStore;
+      }
+    }
+  }
+
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
       id: json['id'].toString(), // Convert int to string for compatibility
@@ -86,10 +112,12 @@ class Product {
       descriptionLong: json['description_long'],
       manufacturerId: json['manufacturer_id'].toString(), // Convert int to string
       storeType: _parseStoreType(json['store_type']),
+      miniAppType: _parseMiniAppType(json['mini_app_type']),
       mainPrice: json['main_price'].toDouble(),
       strikethroughPrice: json['strikethrough_price']?.toDouble(),
       isActive: json['is_active'] ?? true,
       isFeatured: json['is_featured'] ?? false,
+      isMiniAppRecommendation: json['is_mini_app_recommendation'] ?? false,
       imageUrls: List<String>.from(json['image_urls'] ?? []),
       categoryIds: List<String>.from(json['category_ids'] ?? []),
       subcategoryIds: List<String>.from(json['subcategory_ids'] ?? []),
@@ -106,10 +134,12 @@ class Product {
       'description_long': descriptionLong,
       'manufacturer_id': manufacturerId,
       'store_type': storeType.toString().split('.').last,
+      'mini_app_type': miniAppType.apiValue,
       'main_price': mainPrice,
       'strikethrough_price': strikethroughPrice,
       'is_active': isActive,
       'is_featured': isFeatured,
+      'is_mini_app_recommendation': isMiniAppRecommendation,
       'image_urls': imageUrls,
       'category_ids': categoryIds,
       'subcategory_ids': subcategoryIds,

@@ -477,13 +477,21 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
         '团购团批': 'GroupBuying',
       };
 
-      // Map mini-app type to store type for backward compatibility
-      const storeTypeMap = {
-        '零售门店': '展销商店',
-        '无人商店': '无人门店',
-        '展销展消': '展销商店',
-        '团购团批': '展销商店',
-      };
+      // Determine store_type based on mini-app type logic
+      let storeType;
+      if (formData.mini_app_type === '无人商店') {
+        // For unmanned stores, store_type should be derived from selected store
+        const selectedStore = stores.find(store => store.id === parseInt(formData.store_id));
+        storeType = selectedStore ? selectedStore.type : '无人门店'; // fallback
+      } else if (formData.mini_app_type === '展销展消') {
+        // For exhibition sales, store_type should be derived from selected store
+        const selectedStore = stores.find(store => store.id === parseInt(formData.store_id));
+        storeType = selectedStore ? selectedStore.type : '展销商店'; // fallback
+      } else {
+        // For retail store and group buying, store_type is not the primary identifier
+        // Set a default value but the mini_app_type will be the primary identifier
+        storeType = '展销商店'; // default fallback for database compatibility
+      }
 
       // Prepare data for API
       const productData = {
@@ -499,7 +507,7 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
         minimum_order_quantity: parseInt(formData.minimum_order_quantity) || 1,
         manufacturer_id: 1, // Default manufacturer for now
         mini_app_type: miniAppTypeMap[formData.mini_app_type],
-        store_type: storeTypeMap[formData.mini_app_type],
+        store_type: storeType,
         store_id: formData.store_id ? parseInt(formData.store_id) : null,
         is_active: formData.is_active,
         category_ids: formData.category_ids,

@@ -134,17 +134,53 @@ const ProductListPage = () => {
     }).format(price);
   };
 
-  const getStoreTypeChip = (storeType) => {
-    const isUnmanned = storeType?.toLowerCase() === 'unmanned';
+  // Helper function to get the correct type display for a product
+  const getProductTypeDisplay = (product) => {
+    // For RetailStore and GroupBuying, use mini_app_type as the primary identifier
+    if (product.mini_app_type === 'RetailStore') {
+      return '零售商店';
+    } else if (product.mini_app_type === 'GroupBuying') {
+      return '团购团批';
+    } else if (product.mini_app_type === 'UnmannedStore' || product.mini_app_type === 'ExhibitionSales') {
+      // For location-dependent mini-apps, use store_type from the associated store
+      // The backend should populate this correctly via JOIN with stores table
+      return product.store_type;
+    }
+    // Fallback to store_type
+    return product.store_type;
+  };
+
+  const getStoreTypeChip = (product) => {
+    const typeDisplay = getProductTypeDisplay(product);
+
+    // Color mapping for store/mini-app types
+    const getTypeColor = (type) => {
+      const colorMap = {
+        '零售商店': { bg: '#520ee6', hover: '#4a0dd1' }, // purple
+        '无人门店': { bg: '#2196f3', hover: '#1976d2' }, // blue
+        '无人仓店': { bg: '#4caf50', hover: '#388e3c' }, // green
+        '展销商店': { bg: '#ffd556', hover: '#ffcc33' }, // yellow
+        '展销商城': { bg: '#f38900', hover: '#e67c00' }, // orange
+        '团购团批': { bg: '#076200', hover: '#054d00' }, // dark green
+      };
+      return colorMap[type] || { bg: '#757575', hover: '#616161' }; // default gray
+    };
+
+    const colors = getTypeColor(typeDisplay);
+
     return (
       <Chip
-        label={storeType}
+        label={typeDisplay}
         size="small"
-        color={isUnmanned ? 'primary' : 'default'}
-        variant={isUnmanned ? 'filled' : 'outlined'}
+        variant="filled"
         sx={{
           fontWeight: 500,
           fontSize: '12px',
+          backgroundColor: colors.bg,
+          color: '#fff',
+          '&:hover': {
+            backgroundColor: colors.hover,
+          }
         }}
       />
     );
@@ -216,7 +252,7 @@ const ProductListPage = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Product</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>SKU</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Categories</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Store Type</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Price</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Stock</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
@@ -308,16 +344,40 @@ const ProductListPage = () => {
                       </TableCell>
 
                       <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {getStoreTypeChip(product.store_type)}
-                          {/* Featured indicator for Unmanned stores only */}
-                          {product.store_type?.toLowerCase() === 'unmanned' && product.is_featured && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          {getStoreTypeChip(product)}
+                          {/* 热门推荐 tag - Only for 无人商店 and 展销展消 mini-apps */}
+                          {['UnmannedStore', 'ExhibitionSales'].includes(product.mini_app_type) && product.is_featured && (
                             <Chip
                               label="热门推荐"
                               size="small"
-                              color="secondary"
                               variant="filled"
-                              sx={{ fontSize: '0.75rem', height: 20 }}
+                              sx={{
+                                fontSize: '0.75rem',
+                                height: 20,
+                                backgroundColor: '#e2430f',
+                                color: '#fff',
+                                '&:hover': {
+                                  backgroundColor: '#cc3a0e',
+                                }
+                              }}
+                            />
+                          )}
+                          {/* Mini-APP 推荐 tag - For all mini-app types */}
+                          {product.is_mini_app_recommendation && (
+                            <Chip
+                              label="Mini-APP 推荐"
+                              size="small"
+                              variant="filled"
+                              sx={{
+                                fontSize: '0.75rem',
+                                height: 20,
+                                backgroundColor: '#0adcd5',
+                                color: '#fff',
+                                '&:hover': {
+                                  backgroundColor: '#09c4be',
+                                }
+                              }}
                             />
                           )}
                         </Box>

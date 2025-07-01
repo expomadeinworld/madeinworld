@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/store.dart';
-import 'mock_data_service.dart';
+import 'api_service.dart';
 import '../../core/enums/store_type.dart';
 
 class LocationService {
@@ -178,7 +178,9 @@ class LocationService {
       final position = _currentPosition ?? await getCurrentPosition();
       if (position == null) return null;
 
-      final unmannedStores = MockDataService.getStores()
+      final apiService = ApiService();
+      final allStores = await apiService.fetchStores();
+      final unmannedStores = allStores
           .where((store) => store.type == StoreType.unmannedStore || store.type == StoreType.unmannedWarehouse)
           .toList();
 
@@ -214,7 +216,9 @@ class LocationService {
       final position = _currentPosition ?? await getCurrentPosition();
       if (position == null) return [];
 
-      final unmannedStores = MockDataService.getStores()
+      final apiService = ApiService();
+      final allStores = await apiService.fetchStores();
+      final unmannedStores = allStores
           .where((store) => store.type == StoreType.unmannedStore || store.type == StoreType.unmannedWarehouse)
           .toList();
 

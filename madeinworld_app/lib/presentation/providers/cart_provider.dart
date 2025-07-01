@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../../data/models/cart_item.dart';
 import '../../data/models/product.dart';
 import '../../core/enums/store_type.dart';
+import '../../core/enums/mini_app_type.dart';
 
 class CartProvider extends ChangeNotifier {
   final List<CartItem> _items = [];
@@ -28,6 +29,7 @@ class CartProvider extends ChangeNotifier {
         descriptionLong: '',
         manufacturerId: '',
         storeType: StoreType.exhibitionStore,
+        miniAppType: MiniAppType.retailStore,
         mainPrice: 0,
         imageUrls: [],
         categoryIds: [],

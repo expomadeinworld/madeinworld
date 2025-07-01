@@ -27,7 +27,7 @@ class ApiService {
   Future<List<Product>> fetchProducts({
     StoreType? storeType,
     bool? featured,
-    String? storeId,
+    int? storeId,
   }) async {
     try {
       // Build query parameters
@@ -42,7 +42,7 @@ class ApiService {
       }
 
       if (storeId != null) {
-        queryParams['store_id'] = storeId;
+        queryParams['store_id'] = storeId.toString();
       }
 
       // Build URI using the CORRECT base URL from ApiConfig
@@ -60,7 +60,17 @@ class ApiService {
       // Handle response
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = json.decode(response.body);
-        return jsonList.map((json) => Product.fromJson(json)).toList();
+        final products = jsonList.map((json) => Product.fromJson(json)).toList();
+
+        // Debug logging for featured products
+        if (featured == true) {
+          debugPrint('DEBUG: API returned ${products.length} featured products');
+          for (int i = 0; i < products.length && i < 5; i++) {
+            debugPrint('DEBUG: API featured product $i: ${products[i].title} (featured: ${products[i].isFeatured})');
+          }
+        }
+
+        return products;
       } else {
         throw ApiException(
           'Failed to fetch products: ${response.statusCode}',
@@ -271,10 +281,12 @@ class ApiService {
   ///
   /// [storeType] - Filter categories by store type (optional)
   /// [miniAppType] - Filter categories by mini-app type (optional)
+  /// [storeId] - Filter categories by specific store (optional)
   /// [includeSubcategories] - Whether to include subcategories in the response (optional)
   Future<List<Category>> fetchCategoriesWithFilters({
     StoreType? storeType,
     MiniAppType? miniAppType,
+    int? storeId,
     bool includeSubcategories = false,
   }) async {
     try {
@@ -287,6 +299,10 @@ class ApiService {
 
       if (miniAppType != null) {
         queryParams['mini_app_type'] = miniAppType.apiValue;
+      }
+
+      if (storeId != null) {
+        queryParams['store_id'] = storeId.toString();
       }
 
       if (includeSubcategories) {
