@@ -9,7 +9,7 @@ extension StoreTypeExtension on StoreType {
   String get displayName {
     switch (this) {
       case StoreType.unmannedStore:
-        return '无人商店';
+        return '无人门店';
       case StoreType.unmannedWarehouse:
         return '无人仓店';
       case StoreType.exhibitionStore:
@@ -35,7 +35,7 @@ extension StoreTypeExtension on StoreType {
   String get chineseValue {
     switch (this) {
       case StoreType.unmannedStore:
-        return '无人商店';
+        return '无人门店';
       case StoreType.unmannedWarehouse:
         return '无人仓店';
       case StoreType.exhibitionStore:
@@ -62,8 +62,8 @@ extension StoreTypeExtension on StoreType {
 
   static StoreType fromChineseValue(String chineseValue) {
     switch (chineseValue) {
-      case '无人商店':
-      case '无人门店': // Keep backward compatibility
+      case '无人门店':
+      case '无人商店': // Keep backward compatibility
         return StoreType.unmannedStore;
       case '无人仓店':
         return StoreType.unmannedWarehouse;

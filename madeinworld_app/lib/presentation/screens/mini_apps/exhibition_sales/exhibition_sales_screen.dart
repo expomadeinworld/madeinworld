@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
 import '../../../../data/models/category.dart';
+import '../../../../data/models/subcategory.dart';
 import '../../../../data/models/store.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/product.dart';
@@ -14,11 +15,14 @@ import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
 import '../../../widgets/common/store_locator_header.dart';
 import 'exhibition_sales_locations_screen.dart';
-import '../common/subcategory_grid_screen.dart';
+import '../common/product_list_screen.dart';
 import '../../../../core/navigation/custom_page_transitions.dart';
+import '../../../../core/config/api_config.dart';
 
 class ExhibitionSalesScreen extends StatefulWidget {
-  const ExhibitionSalesScreen({super.key});
+  final String? instanceId;
+
+  const ExhibitionSalesScreen({super.key, this.instanceId});
 
   @override
   State<ExhibitionSalesScreen> createState() => _ExhibitionSalesScreenState();
@@ -27,18 +31,22 @@ class ExhibitionSalesScreen extends StatefulWidget {
 class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
   int _currentIndex = 0;
   Store? _selectedStore;
-  final GlobalKey<_ProductsTabState> _productsTabKey = GlobalKey<_ProductsTabState>();
+  late final GlobalKey<_ProductsTabState> _productsTabKey;
 
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    // Create unique GlobalKey with instance ID
+    final instanceId = widget.instanceId ?? DateTime.now().millisecondsSinceEpoch.toString();
+    _productsTabKey = GlobalKey<_ProductsTabState>(debugLabel: 'exhibition_products_tab_$instanceId');
+
     _screens = [
       _ProductsTab(key: _productsTabKey, onStoreSelected: _onStoreSelected),
-      const _LocationsTab(),
-      const _MessagesTab(),
-      const _ProfileTab(),
+      _LocationsTab(key: ValueKey('exhibition_locations_$instanceId')),
+      _MessagesTab(key: ValueKey('exhibition_messages_$instanceId')),
+      _ProfileTab(key: ValueKey('exhibition_profile_$instanceId')),
     ];
   }
 
@@ -46,8 +54,8 @@ class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
     setState(() {
       _selectedStore = store;
     });
-    // Refresh data when store changes
-    _productsTabKey.currentState?.fetchData();
+    // Update the selected store in the ProductsTab and refresh data
+    _productsTabKey.currentState?.updateSelectedStore(store);
   }
 
   // Store locator header for exhibition sales
@@ -66,7 +74,11 @@ class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
     return Scaffold(
       // REPLACE the old appBar with this conditional line
       appBar: _currentIndex == 1 ? null : _buildAppBar(),
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(
+        key: const ValueKey('exhibition_indexed_stack'),
+        index: _currentIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
@@ -220,31 +232,53 @@ class _ProductsTabState extends State<_ProductsTab> {
     }
   }
 
+  void updateSelectedStore(Store? store) {
+    setState(() {
+      _selectedStore = store;
+      // Reset to featured/推荐 category when store changes
+      _selectedCategoryId = 'featured';
+    });
+    fetchData();
+  }
+
   void fetchData() {
     final storeId = _selectedStore?.id != null ? int.tryParse(_selectedStore!.id) : null;
-    debugPrint('DEBUG: Exhibition Sales - Fetching data for store ID: $storeId');
+    debugPrint('🔍 DEBUG: Exhibition Sales - Fetching data for store ID: $storeId');
+    debugPrint('🔍 DEBUG: Exhibition Sales - Selected store: ${_selectedStore?.name}');
+    debugPrint('🔍 DEBUG: Exhibition Sales - Selected store type: ${_selectedStore?.type}');
+    debugPrint('🔍 DEBUG: Exhibition Sales - Selected store type API value: ${_selectedStore?.type.apiValue}');
 
     setState(() {
+      // For categories: use miniAppType for filtering, and storeId for store-specific categories
       _categoriesFuture = _apiService.fetchCategoriesWithFilters(
         miniAppType: MiniAppType.exhibitionSales,
         storeId: storeId,
         includeSubcategories: true,
       ).then((categories) {
-        debugPrint('DEBUG: Exhibition Sales - Categories fetched: ${categories.length}');
+        debugPrint('🔍 DEBUG: Exhibition Sales - Categories fetched: ${categories.length}');
         for (final category in categories) {
-          debugPrint('DEBUG: Exhibition category: ${category.name}');
+          debugPrint('🔍 DEBUG: Exhibition category: ${category.name} (ID: ${category.id})');
         }
         return categories;
       });
 
-      // Pass the storeId to the products fetch call
+      // For products: use storeId for precise filtering (store type is automatically determined by backend)
+      // This ensures recommendations are filtered by the specific store location
       _productsFuture = _apiService.fetchProducts(
-        storeType: StoreType.exhibitionStore,
-        storeId: storeId,
+        storeId: storeId, // Only use storeId - backend will determine the correct store type
       ).then((products) {
-        debugPrint('DEBUG: Exhibition Sales - Products fetched: ${products.length}');
+        debugPrint('🔍 DEBUG: Exhibition Sales - Products fetched: ${products.length}');
+
+        // Count recommendations vs featured vs regular products
+        final recommendedProducts = products.where((p) => p.isMiniAppRecommendation).length;
+        final featuredProducts = products.where((p) => p.isFeatured).length;
+        final regularProducts = products.where((p) => !p.isMiniAppRecommendation && !p.isFeatured).length;
+
+        debugPrint('🔍 DEBUG: Product breakdown - Recommended: $recommendedProducts, Featured: $featuredProducts, Regular: $regularProducts');
+
         for (int i = 0; i < products.length && i < 5; i++) {
-          debugPrint('DEBUG: Exhibition product $i: ${products[i].title}');
+          final product = products[i];
+          debugPrint('🔍 DEBUG: Product $i: ${product.title} (Recommended: ${product.isMiniAppRecommendation}, Featured: ${product.isFeatured}, StoreType: ${product.storeType})');
         }
         return products;
       });
@@ -305,15 +339,7 @@ class _ProductsTabState extends State<_ProductsTab> {
             // Use the proper category building method with deduplication
             final categories = _buildCategoriesWithFeatured(allCategories, allProducts);
 
-            // Filter products by selected category
-            final filteredProducts = _selectedCategoryId == null || _selectedCategoryId == 'featured'
-                ? allProducts.where((product) => product.isFeatured).toList()
-                : allProducts
-                      .where(
-                        (product) =>
-                            product.categoryIds.contains(_selectedCategoryId),
-                      )
-                      .toList();
+
 
             return Column(
               children: [
@@ -335,48 +361,18 @@ class _ProductsTabState extends State<_ProductsTab> {
                         isSelected: _selectedCategoryId == category.id ||
                             (_selectedCategoryId == null && category.id == 'featured'),
                         onTap: () {
-                          if (category.id == 'featured') {
-                            // For featured category, just filter products
-                            setState(() {
-                              _selectedCategoryId = 'featured';
-                            });
-                          } else {
-                            // For other categories, navigate to subcategory grid
-                            Navigator.of(context).push(
-                              SlideRightRoute(
-                                page: SubcategoryGridScreen(
-                                  category: category,
-                                  allProducts: allProducts,
-                                  miniAppName: '展销展消',
-                                ),
-                              ),
-                            );
-                          }
+                          setState(() {
+                            _selectedCategoryId = category.id;
+                          });
                         },
                       );
                     },
                   ),
                 ),
 
-                // Products Grid
+                // Level 2: Subcategory Grid or Level 3: Product Grid
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: MasonryGridView.count(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      itemCount: filteredProducts.length,
-                      itemBuilder: (context, index) {
-                        return ProductCard(
-                          product: filteredProducts[index],
-                          onTap: () {
-                            // Navigate to product detail
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                  child: _buildContentArea(categories, allProducts),
                 ),
               ],
             );
@@ -388,15 +384,223 @@ class _ProductsTabState extends State<_ProductsTab> {
     );
   }
 
-  /// Builds a list of categories with featured category, ensuring no duplicates
+  /// Builds the content area based on selected category
+  Widget _buildContentArea(List<Category> categories, List<Product> allProducts) {
+    if (_selectedCategoryId == null || _selectedCategoryId == 'featured') {
+      // Show mini-app recommendations directly
+      final recommendedProducts = allProducts.where((product) => product.isMiniAppRecommendation).toList();
+
+      return _buildProductGrid(recommendedProducts);
+    } else {
+      // Find the selected category
+      final selectedCategory = categories.firstWhere(
+        (cat) => cat.id == _selectedCategoryId,
+        orElse: () => categories.first,
+      );
+
+      // Check if category has subcategories
+      if (selectedCategory.subcategories.isNotEmpty) {
+        // Show subcategory grid (Level 2)
+        return _buildSubcategoryGrid(selectedCategory, allProducts);
+      } else {
+        // Show products directly if no subcategories
+        final categoryProducts = allProducts.where((product) =>
+            product.categoryIds.contains(_selectedCategoryId)).toList();
+        return _buildProductGrid(categoryProducts);
+      }
+    }
+  }
+
+  /// Builds the subcategory grid (Level 2)
+  Widget _buildSubcategoryGrid(Category category, List<Product> allProducts) {
+    // Filter subcategories that have products
+    final subcategoriesWithProducts = category.subcategories.where((subcategory) {
+      return allProducts.any((product) =>
+        product.subcategoryIds.contains(subcategory.id.toString())
+      );
+    }).toList();
+
+    if (subcategoriesWithProducts.isEmpty) {
+      return _buildEmptyState('该分类暂无商品');
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3, // 3 columns for better visual aesthetics and readability
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.75, // Adjusted ratio for larger cards in 3-column layout
+        ),
+        itemCount: subcategoriesWithProducts.length,
+        itemBuilder: (context, index) {
+          final subcategory = subcategoriesWithProducts[index];
+
+          return _buildSubcategoryCard(context, category, subcategory, allProducts);
+        },
+      ),
+    );
+  }
+
+  /// Builds a subcategory card
+  Widget _buildSubcategoryCard(BuildContext context, Category category, Subcategory subcategory, List<Product> allProducts) {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to product list for this subcategory (Level 3)
+        Navigator.of(context).push(
+          SlideRightRoute(
+            page: ProductListScreen(
+              category: category,
+              subcategory: subcategory,
+              allProducts: allProducts,
+              miniAppName: '展销展消',
+            ),
+            routeKey: 'exhibition_subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
+          ),
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Image area - square container with small border radius
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(8), // Added 8px border radius
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8), // Match container border radius
+              child: AspectRatio(
+                aspectRatio: 1.0, // Perfect square (1:1 ratio)
+                child: Container(
+                  color: AppColors.lightBackground,
+                  child: subcategory.imageUrl != null
+                      ? Image.network(
+                          _buildFullImageUrl(subcategory.imageUrl!),
+                          fit: BoxFit.contain, // Show complete image without cropping
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.lightBackground,
+                              child: Icon(
+                                Icons.category,
+                                size: 24,
+                                color: AppColors.secondaryText,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: AppColors.lightBackground,
+                          child: Icon(
+                            Icons.category,
+                            size: 24,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+
+          // Text area - completely separate below the image
+          const SizedBox(height: 4), // Reduced space between image and text
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+              child: Text(
+                subcategory.name,
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14, // Increased font size for better readability in 3-column layout
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds full image URL from relative path
+  String _buildFullImageUrl(String imageUrl) {
+    // If the URL is already a full URL (starts with http), return as is
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+
+    // If it's a relative path, prepend the base URL
+    return '${ApiConfig.baseUrl}$imageUrl';
+  }
+
+  /// Builds the product grid
+  Widget _buildProductGrid(List<Product> products) {
+    if (products.isEmpty) {
+      return _buildEmptyState('暂无商品');
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: MasonryGridView.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          return ProductCard(
+            product: products[index],
+            onTap: () {
+              // Navigate to product detail
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// Builds empty state widget
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.shopping_bag_outlined,
+            size: 64,
+            color: AppColors.secondaryText,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds a list of categories with recommendations category, ensuring no duplicates
   List<Category> _buildCategoriesWithFeatured(List<Category> apiCategories, List<Product> allProducts) {
     final List<Category> result = [];
 
-    // Check if there are any featured products
-    final hasFeaturedProducts = allProducts.any((product) => product.isFeatured);
+    // Check if there are any mini-app recommendations
+    final hasRecommendedProducts = allProducts.any((product) => product.isMiniAppRecommendation);
 
-    // Always add featured category first if there are featured products
-    if (hasFeaturedProducts) {
+    // Always add recommendations category first if there are mini-app recommendations
+    if (hasRecommendedProducts) {
       result.add(Category(
         id: 'featured',
         name: '推荐',
@@ -417,7 +621,7 @@ class _ProductsTabState extends State<_ProductsTab> {
 }
 
 class _LocationsTab extends StatelessWidget {
-  const _LocationsTab();
+  const _LocationsTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -426,7 +630,7 @@ class _LocationsTab extends StatelessWidget {
 }
 
 class _MessagesTab extends StatelessWidget {
-  const _MessagesTab();
+  const _MessagesTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -435,7 +639,7 @@ class _MessagesTab extends StatelessWidget {
 }
 
 class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
+  const _ProfileTab({super.key});
 
   @override
   Widget build(BuildContext context) {

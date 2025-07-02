@@ -105,6 +105,7 @@ class SubcategoryGridScreen extends StatelessWidget {
               allProducts: allProducts,
               miniAppName: miniAppName,
             ),
+            routeKey: 'subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
           ),
         );
       },

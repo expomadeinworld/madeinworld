@@ -265,7 +265,10 @@ class _UnmannedStoreLocationsScreenState extends State<UnmannedStoreLocationsScr
             Navigator.of(context).pop();
           } else {
             Navigator.of(context).pushReplacement(
-              SlideAwayRoute(page: const UnmannedStoreScreen()),
+              SlideAwayRoute(
+                page: const UnmannedStoreScreen(),
+                routeKey: 'unmanned_back_${DateTime.now().millisecondsSinceEpoch}',
+              ),
             );
           }
         },

@@ -5,12 +5,16 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
 import '../../../../data/models/category.dart';
+import '../../../../data/models/subcategory.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../data/models/product.dart';
 import '../../../../core/enums/store_type.dart';
 import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
+import '../common/product_list_screen.dart';
+import '../../../../core/navigation/custom_page_transitions.dart';
+import '../../../../core/config/api_config.dart';
 
 class GroupBuyingScreen extends StatefulWidget {
   const GroupBuyingScreen({super.key});
@@ -23,10 +27,10 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const _ProductsTab(),
-    const _GroupsTab(),
-    const _MessagesTab(),
-    const _ProfileTab(),
+    const _ProductsTab(key: ValueKey('group_products')),
+    const _GroupsTab(key: ValueKey('group_groups')),
+    const _MessagesTab(key: ValueKey('group_messages')),
+    const _ProfileTab(key: ValueKey('group_profile')),
   ];
 
   @override
@@ -44,7 +48,11 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
           ),
         ],
       ),
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(
+        key: const ValueKey('group_indexed_stack'),
+        index: _currentIndex,
+        children: _screens,
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.white,
@@ -140,7 +148,7 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
 }
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab();
+  const _ProductsTab({super.key});
 
   @override
   State<_ProductsTab> createState() => _ProductsTabState();
@@ -223,17 +231,7 @@ class _ProductsTabState extends State<_ProductsTab> {
             // Build categories list with featured category if there are recommended products
             final displayCategories = _buildCategoriesWithFeatured(categories, hasRecommendedProducts);
 
-            // Filter products by selected category
-            final filteredProducts = _selectedCategoryId == null || _selectedCategoryId == 'featured'
-                ? products.where((product) =>
-                    product.isMiniAppRecommendation &&
-                    product.miniAppType == MiniAppType.groupBuying).toList()
-                : products
-                      .where(
-                        (product) =>
-                            product.categoryIds.contains(_selectedCategoryId),
-                      )
-                      .toList();
+
 
             return Column(
               children: [
@@ -261,25 +259,9 @@ class _ProductsTabState extends State<_ProductsTab> {
                   ),
                 ),
 
-                // Products Grid
+                // Level 2: Subcategory Grid or Level 3: Product Grid
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: MasonryGridView.count(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      itemCount: filteredProducts.length,
-                      itemBuilder: (context, index) {
-                        return ProductCard(
-                          product: filteredProducts[index],
-                          onTap: () {
-                            // Navigate to product detail
-                          },
-                        );
-                      },
-                    ),
-                  ),
+                  child: _buildContentArea(displayCategories, products),
                 ),
               ],
             );
@@ -287,6 +269,216 @@ class _ProductsTabState extends State<_ProductsTab> {
             return const Center(child: Text('暂无数据'));
           }
         },
+      ),
+    );
+  }
+
+  /// Builds the content area based on selected category
+  Widget _buildContentArea(List<Category> categories, List<Product> allProducts) {
+    if (_selectedCategoryId == null || _selectedCategoryId == 'featured') {
+      // Show featured products directly
+      final featuredProducts = allProducts.where((product) =>
+          product.isMiniAppRecommendation &&
+          product.miniAppType == MiniAppType.groupBuying).toList();
+
+      return _buildProductGrid(featuredProducts);
+    } else {
+      // Find the selected category
+      final selectedCategory = categories.firstWhere(
+        (cat) => cat.id == _selectedCategoryId,
+        orElse: () => categories.first,
+      );
+
+      // Check if category has subcategories
+      if (selectedCategory.subcategories.isNotEmpty) {
+        // Show subcategory grid (Level 2)
+        return _buildSubcategoryGrid(selectedCategory, allProducts);
+      } else {
+        // Show products directly if no subcategories
+        final categoryProducts = allProducts.where((product) =>
+            product.categoryIds.contains(_selectedCategoryId)).toList();
+        return _buildProductGrid(categoryProducts);
+      }
+    }
+  }
+
+  /// Builds the subcategory grid (Level 2)
+  Widget _buildSubcategoryGrid(Category category, List<Product> allProducts) {
+    // Filter subcategories that have products
+    final subcategoriesWithProducts = category.subcategories.where((subcategory) {
+      return allProducts.any((product) =>
+        product.subcategoryIds.contains(subcategory.id.toString())
+      );
+    }).toList();
+
+    if (subcategoriesWithProducts.isEmpty) {
+      return _buildEmptyState('该分类暂无商品');
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3, // 3 columns for better visual aesthetics and readability
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.75, // Adjusted ratio for larger cards in 3-column layout
+        ),
+        itemCount: subcategoriesWithProducts.length,
+        itemBuilder: (context, index) {
+          final subcategory = subcategoriesWithProducts[index];
+
+          return _buildSubcategoryCard(context, category, subcategory, allProducts);
+        },
+      ),
+    );
+  }
+
+  /// Builds a subcategory card
+  Widget _buildSubcategoryCard(BuildContext context, Category category, Subcategory subcategory, List<Product> allProducts) {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to product list for this subcategory (Level 3)
+        Navigator.of(context).push(
+          SlideRightRoute(
+            page: ProductListScreen(
+              category: category,
+              subcategory: subcategory,
+              allProducts: allProducts,
+              miniAppName: '团购团批',
+            ),
+            routeKey: 'group_subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
+          ),
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Image area - square container with small border radius
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(8), // Added 8px border radius
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8), // Match container border radius
+              child: AspectRatio(
+                aspectRatio: 1.0, // Perfect square (1:1 ratio)
+                child: Container(
+                  color: AppColors.lightBackground,
+                  child: subcategory.imageUrl != null
+                      ? Image.network(
+                          _buildFullImageUrl(subcategory.imageUrl!),
+                          fit: BoxFit.contain, // Show complete image without cropping
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.lightBackground,
+                              child: Icon(
+                                Icons.category,
+                                size: 24,
+                                color: AppColors.secondaryText,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: AppColors.lightBackground,
+                          child: Icon(
+                            Icons.category,
+                            size: 24,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ),
+
+          // Text area - completely separate below the image
+          const SizedBox(height: 4), // Reduced space between image and text
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+              child: Text(
+                subcategory.name,
+                style: AppTextStyles.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14, // Increased font size for better readability in 3-column layout
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds full image URL from relative path
+  String _buildFullImageUrl(String imageUrl) {
+    // If the URL is already a full URL (starts with http), return as is
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+
+    // If it's a relative path, prepend the base URL
+    return '${ApiConfig.baseUrl}$imageUrl';
+  }
+
+  /// Builds the product grid
+  Widget _buildProductGrid(List<Product> products) {
+    if (products.isEmpty) {
+      return _buildEmptyState('暂无商品');
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: MasonryGridView.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        itemCount: products.length,
+        itemBuilder: (context, index) {
+          return ProductCard(
+            product: products[index],
+            onTap: () {
+              // Navigate to product detail
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// Builds empty state widget
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.shopping_bag_outlined,
+            size: 64,
+            color: AppColors.secondaryText,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -317,7 +509,7 @@ class _ProductsTabState extends State<_ProductsTab> {
 }
 
 class _GroupsTab extends StatelessWidget {
-  const _GroupsTab();
+  const _GroupsTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +518,7 @@ class _GroupsTab extends StatelessWidget {
 }
 
 class _MessagesTab extends StatelessWidget {
-  const _MessagesTab();
+  const _MessagesTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +527,7 @@ class _MessagesTab extends StatelessWidget {
 }
 
 class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
+  const _ProfileTab({super.key});
 
   @override
   Widget build(BuildContext context) {

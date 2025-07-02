@@ -31,21 +31,73 @@ class StoreLocatorHeader extends StatefulWidget implements PreferredSizeWidget {
   State<StoreLocatorHeader> createState() => _StoreLocatorHeaderState();
 }
 
-class _StoreLocatorHeaderState extends State<StoreLocatorHeader> {
+class _StoreLocatorHeaderState extends State<StoreLocatorHeader> with WidgetsBindingObserver {
   bool _isDropdownOpen = false;
   OverlayEntry? _overlayEntry;
-  final GlobalKey _storeLocatorKey = GlobalKey();
+  late final GlobalKey _storeLocatorKey;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create a unique GlobalKey for each instance with timestamp and mini-app name
+    _storeLocatorKey = GlobalKey(debugLabel: 'store_locator_${widget.miniAppName}_${DateTime.now().microsecondsSinceEpoch}');
+    // Add lifecycle observer to clean up overlays when app goes to background
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Remove overlay when route changes to prevent conflicts
+    if (_isDropdownOpen) {
+      _removeOverlay();
+    }
+  }
 
   @override
   void dispose() {
+    // Remove lifecycle observer and clean up overlays
+    WidgetsBinding.instance.removeObserver(this);
     _removeOverlay();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Clean up overlays when app goes to background to prevent conflicts
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      if (_isDropdownOpen) {
+        _removeOverlay();
+      }
+    }
+  }
+
   void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    if (_overlayEntry != null) {
+      try {
+        // Check if overlay is still mounted before removing
+        if (_overlayEntry!.mounted) {
+          _overlayEntry!.remove();
+        }
+      } catch (e) {
+        debugPrint('[${widget.miniAppName}] Error removing overlay: $e');
+      } finally {
+        _overlayEntry = null;
+      }
+    }
+    // Only call setState if widget is still mounted and not being deactivated
     _isDropdownOpen = false;
+    if (mounted) {
+      // Use post-frame callback to avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            // State already updated above, this just triggers rebuild
+          });
+        }
+      });
+    }
   }
 
   void _toggleDropdown() {
@@ -105,8 +157,22 @@ class _StoreLocatorHeaderState extends State<StoreLocatorHeader> {
   }
 
   void _buildAndShowDropdown(List<StoreWithDistance> stores) {
+    // Ensure we don't create multiple overlays
+    if (_overlayEntry != null || _isDropdownOpen) {
+      _removeOverlay();
+    }
 
-    final RenderBox renderBox = _storeLocatorKey.currentContext!.findRenderObject() as RenderBox;
+    // Check if the widget is still mounted and the key has a valid context
+    if (!mounted || _storeLocatorKey.currentContext == null) {
+      debugPrint('[${widget.miniAppName}] Cannot show dropdown: widget not mounted or context null');
+      return;
+    }
+
+    final RenderBox? renderBox = _storeLocatorKey.currentContext!.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      debugPrint('[${widget.miniAppName}] Cannot show dropdown: renderBox is null');
+      return;
+    }
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
 
@@ -197,10 +263,27 @@ class _StoreLocatorHeaderState extends State<StoreLocatorHeader> {
       ),
     );
 
-    Overlay.of(context).insert(_overlayEntry!);
-    setState(() {
-      _isDropdownOpen = true;
-    });
+    // Safely insert the overlay with additional checks
+    if (mounted && _overlayEntry != null) {
+      try {
+        final overlay = Overlay.of(context);
+        // Double-check that overlay is available and widget is still mounted
+        if (overlay.mounted && mounted) {
+          overlay.insert(_overlayEntry!);
+          if (mounted) {
+            setState(() {
+              _isDropdownOpen = true;
+            });
+          }
+        } else {
+          debugPrint('[${widget.miniAppName}] Cannot insert overlay: overlay or widget not mounted');
+          _overlayEntry = null;
+        }
+      } catch (e) {
+        debugPrint('[${widget.miniAppName}] Error inserting overlay: $e');
+        _overlayEntry = null;
+      }
+    }
   }
 
   Color _getStoreTypeColor(StoreType storeType) {

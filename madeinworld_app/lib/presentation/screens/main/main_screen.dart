@@ -17,16 +17,17 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const HomeScreen(),
-    const LocationsScreen(),
-    const MessagesScreen(),
-    const ProfileScreen(),
+    const HomeScreen(key: ValueKey('main_home')),
+    const LocationsScreen(key: ValueKey('main_locations')),
+    const MessagesScreen(key: ValueKey('main_messages')),
+    const ProfileScreen(key: ValueKey('main_profile')),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
+        key: const ValueKey('main_indexed_stack'),
         index: _currentIndex,
         children: _screens,
       ),

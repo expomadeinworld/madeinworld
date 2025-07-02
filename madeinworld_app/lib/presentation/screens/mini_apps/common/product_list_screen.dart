@@ -105,6 +105,7 @@ class ProductListScreen extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => DraggableScrollableSheet(
+        key: ValueKey('product_detail_${product.id}_${DateTime.now().millisecondsSinceEpoch}'),
         initialChildSize: 0.7,
         minChildSize: 0.5,
         maxChildSize: 0.95,

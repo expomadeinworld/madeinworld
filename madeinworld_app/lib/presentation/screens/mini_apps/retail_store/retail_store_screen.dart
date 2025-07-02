@@ -29,10 +29,10 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
   int _currentIndex = 0;
   
   final List<Widget> _screens = [
-    const _ProductsTab(),
-    const _MessagesTab(),
-    const _CartTab(),
-    const _ProfileTab(),
+    const _ProductsTab(key: ValueKey('retail_products')),
+    const _MessagesTab(key: ValueKey('retail_messages')),
+    const _CartTab(key: ValueKey('retail_cart')),
+    const _ProfileTab(key: ValueKey('retail_profile')),
   ];
 
   @override
@@ -57,6 +57,7 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
         ],
       ),
       body: IndexedStack(
+        key: const ValueKey('retail_indexed_stack'),
         index: _currentIndex,
         children: _screens,
       ),
@@ -178,7 +179,7 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
 }
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab();
+  const _ProductsTab({super.key});
 
   @override
   State<_ProductsTab> createState() => _ProductsTabState();
@@ -186,7 +187,6 @@ class _ProductsTab extends StatefulWidget {
 
 class _ProductsTabState extends State<_ProductsTab> {
   String? _selectedCategoryId = 'featured'; // Default to featured/推荐
-  Category? _selectedCategory; // Store the selected category object
   final ApiService _apiService = ApiService();
   late Future<List<Category>> _categoriesFuture;
   late Future<List<Product>> _productsFuture;
@@ -287,7 +287,6 @@ class _ProductsTabState extends State<_ProductsTab> {
                       onTap: () {
                         setState(() {
                           _selectedCategoryId = category.id;
-                          _selectedCategory = category.id == 'featured' ? null : category;
                         });
                       },
                     );
@@ -356,10 +355,10 @@ class _ProductsTabState extends State<_ProductsTab> {
       padding: const EdgeInsets.all(16),
       child: GridView.builder(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3, // Changed from 2 to 3 for smaller cards
+          crossAxisCount: 3, // 3 columns for better visual aesthetics and readability
           crossAxisSpacing: 12,
           mainAxisSpacing: 16,
-          childAspectRatio: 0.8, // Adjusted for image + text layout
+          childAspectRatio: 0.75, // Adjusted ratio for larger cards in 3-column layout
         ),
         itemCount: subcategoriesWithProducts.length,
         itemBuilder: (context, index) {
@@ -384,79 +383,79 @@ class _ProductsTabState extends State<_ProductsTab> {
               allProducts: allProducts,
               miniAppName: '零售门店',
             ),
+            routeKey: 'retail_subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
           ),
         );
       },
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Image area - square container with small border radius
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(8), // Added 8px border radius
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Subcategory image - Fixed size window (completely separate)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Container(
-                height: 100, // Fixed height for image window
-                width: double.infinity,
-                color: AppColors.lightBackground,
-                child: subcategory.imageUrl != null
-                    ? Image.network(
-                        _buildFullImageUrl(subcategory.imageUrl!),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 100,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            width: double.infinity,
-                            height: 100,
-                            color: AppColors.lightBackground,
-                            child: Icon(
-                              Icons.category,
-                              size: 32,
-                              color: AppColors.secondaryText,
-                            ),
-                          );
-                        },
-                      )
-                    : Container(
-                        width: double.infinity,
-                        height: 100,
-                        color: AppColors.lightBackground,
-                        child: Icon(
-                          Icons.category,
-                          size: 32,
-                          color: AppColors.secondaryText,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8), // Match container border radius
+              child: AspectRatio(
+                aspectRatio: 1.0, // Perfect square (1:1 ratio)
+                child: Container(
+                  color: AppColors.lightBackground,
+                  child: subcategory.imageUrl != null
+                      ? Image.network(
+                          _buildFullImageUrl(subcategory.imageUrl!),
+                          fit: BoxFit.contain, // Show complete image without cropping
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.lightBackground,
+                              child: Icon(
+                                Icons.category,
+                                size: 24,
+                                color: AppColors.secondaryText,
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: AppColors.lightBackground,
+                          child: Icon(
+                            Icons.category,
+                            size: 24,
+                            color: AppColors.secondaryText,
+                          ),
                         ),
-                      ),
+                ),
               ),
             ),
+          ),
 
-            // Subcategory name - Completely separate from image
-            Container(
-              padding: const EdgeInsets.all(8),
+          // Text area - completely separate below the image
+          const SizedBox(height: 4), // Reduced space between image and text
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
               child: Text(
                 subcategory.name,
                 style: AppTextStyles.bodySmall.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 14, // Increased font size for better readability in 3-column layout
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -552,7 +551,7 @@ class _ProductsTabState extends State<_ProductsTab> {
 }
 
 class _MessagesTab extends StatelessWidget {
-  const _MessagesTab();
+  const _MessagesTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -563,7 +562,7 @@ class _MessagesTab extends StatelessWidget {
 }
 
 class _CartTab extends StatelessWidget {
-  const _CartTab();
+  const _CartTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -572,7 +571,7 @@ class _CartTab extends StatelessWidget {
 }
 
 class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
+  const _ProfileTab({super.key});
 
   @override
   Widget build(BuildContext context) {

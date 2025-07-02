@@ -264,7 +264,10 @@ class _ExhibitionSalesLocationsScreenState extends State<ExhibitionSalesLocation
             Navigator.of(context).pop();
           } else {
             Navigator.of(context).pushReplacement(
-              SlideAwayRoute(page: const ExhibitionSalesScreen()),
+              SlideAwayRoute(
+                page: const ExhibitionSalesScreen(),
+                routeKey: 'exhibition_back_${DateTime.now().millisecondsSinceEpoch}',
+              ),
             );
           }
         },

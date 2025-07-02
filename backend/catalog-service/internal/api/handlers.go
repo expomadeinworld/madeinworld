@@ -290,6 +290,9 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	// Check if this is an admin request (for internal admin panel use)
 	isAdminRequest := c.GetHeader("X-Admin-Request") == "true"
 
+	// Debug logging
+	log.Printf("🔍 DEBUG: GetProducts called with params - storeType: %s, featured: %s, storeID: %s, isAdmin: %t", storeType, featured, storeID, isAdminRequest)
+
 	// Build the query - include cost_price only for admin requests
 	// For location-dependent mini-apps (UnmannedStore, ExhibitionSales), we need to JOIN with stores table
 	// to get the actual store type from the associated store
@@ -335,10 +338,18 @@ func (h *Handler) GetProducts(c *gin.Context) {
 
 	// Add store type filter
 	if storeType != "" {
-		query += fmt.Sprintf(" AND p.store_type = $%d", argIndex)
+		// Use the same logic as the SELECT statement for store type filtering
+		query += fmt.Sprintf(" AND (CASE WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL THEN s.type ELSE p.store_type END) = $%d", argIndex)
 		// Convert English enum values to Chinese database values
 		dbStoreType := convertStoreTypeToDBValue(storeType)
 		args = append(args, dbStoreType)
+		argIndex++
+	}
+
+	// Add store ID filter
+	if storeID != "" {
+		query += fmt.Sprintf(" AND p.store_id = $%d", argIndex)
+		args = append(args, storeID)
 		argIndex++
 	}
 
@@ -350,6 +361,10 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	}
 
 	query += " ORDER BY p.product_id"
+
+	// Debug logging for final query
+	log.Printf("🔍 DEBUG: Final products query: %s", query)
+	log.Printf("🔍 DEBUG: Query args: %v", args)
 
 	// Execute query
 	rows, err := h.db.Pool.Query(ctx, query, args...)
@@ -466,6 +481,22 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		log.Printf("Error iterating products: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process products"})
 		return
+	}
+
+	// Debug logging for results
+	log.Printf("🔍 DEBUG: Found %d products", len(products))
+	if len(products) > 0 {
+		recommendedCount := 0
+		featuredCount := 0
+		for _, product := range products {
+			if product.IsMiniAppRecommendation {
+				recommendedCount++
+			}
+			if product.IsFeatured {
+				featuredCount++
+			}
+		}
+		log.Printf("🔍 DEBUG: Product breakdown - Recommended: %d, Featured: %d, Total: %d", recommendedCount, featuredCount, len(products))
 	}
 
 	if isAdminRequest {

@@ -383,7 +383,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
             Navigator.of(context).pop();
           } else {
             Navigator.of(context).pushReplacement(
-              SlideAwayRoute(page: const MainScreen()),
+              SlideAwayRoute(
+                page: const MainScreen(),
+                routeKey: 'main_back_${DateTime.now().millisecondsSinceEpoch}',
+              ),
             );
           }
         },

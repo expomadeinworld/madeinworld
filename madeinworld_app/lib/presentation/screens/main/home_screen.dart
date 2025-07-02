@@ -33,9 +33,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Add lifecycle observer for automatic foreground refresh
     WidgetsBinding.instance.addObserver(this);
 
-    // Location services are now automatically initialized by LocationProvider constructor
-    // No manual initialization needed
-
     // Initialize the featured products future
     _refreshFeaturedProducts();
 
@@ -350,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         'icon': Icons.store,
         'color': AppColors.blueModule,
         'bgColor': AppColors.blueModuleBg,
-        'onTap': () => _navigateToMiniApp(context, const UnmannedStoreScreen()),
+        'onTap': () => _navigateToMiniApp(context, UnmannedStoreScreen(instanceId: DateTime.now().millisecondsSinceEpoch.toString())),
       },
       {
         'title': '展销展消',
@@ -358,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         'color': AppColors.purpleModule,
         'bgColor': AppColors.purpleModuleBg,
         'onTap': () =>
-            _navigateToMiniApp(context, const ExhibitionSalesScreen()),
+            _navigateToMiniApp(context, ExhibitionSalesScreen(instanceId: DateTime.now().millisecondsSinceEpoch.toString())),
       },
       {
         'title': '团购团批',
@@ -673,6 +670,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           // Only animate the mini-app sliding up from bottom
           // The super app main page stays fixed underneath
           return SlideTransition(
+            key: ValueKey('miniapp_transition_${DateTime.now().millisecondsSinceEpoch}'),
             position: Tween<Offset>(
               begin: const Offset(0.0, 1.0), // Start from bottom
               end: Offset.zero, // End at normal position
