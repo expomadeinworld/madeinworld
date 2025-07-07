@@ -629,6 +629,7 @@ class __ProductsTabState extends State<_ProductsTab>
               subcategory: subcategory,
               allProducts: allProducts,
               miniAppName: '无人商店',
+              selectedStore: _selectedStore, // Pass the selected store context
             ),
             routeKey: 'unmanned_subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
           ),
@@ -735,9 +736,7 @@ class __ProductsTabState extends State<_ProductsTab>
         itemBuilder: (context, index) {
           return ProductCard(
             product: products[index],
-            onTap: () {
-              // Navigate to product detail
-            },
+            // Will use default modal behavior since onTap is null
           );
         },
       ),

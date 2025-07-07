@@ -451,9 +451,7 @@ class _ProductsTabState extends State<_ProductsTab> {
         itemBuilder: (context, index) {
           return ProductCard(
             product: products[index],
-            onTap: () {
-              // Navigate to product detail
-            },
+            // Will use default modal behavior since onTap is null
           );
         },
       ),

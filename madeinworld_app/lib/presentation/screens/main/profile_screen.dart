@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../data/services/mock_data_service.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final user = MockDataService.getMockUser();
+    // TODO: Replace with proper user management system
+    const userName = '尊贵的用户';
+    const userEmail = 'user.name@email.com';
+    const userAvatarUrl = 'https://i.pravatar.cc/96';
     
     return Scaffold(
       appBar: AppBar(
@@ -45,7 +47,7 @@ class ProfileScreen extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(32),
                       child: CachedNetworkImage(
-                        imageUrl: user.avatarUrl ?? '',
+                        imageUrl: userAvatarUrl,
                         width: 64,
                         height: 64,
                         fit: BoxFit.cover,
@@ -80,21 +82,19 @@ class ProfileScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user.fullName,
+                            userName,
                             style: AppTextStyles.cardTitle,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            user.phoneNumber,
+                            '+41791234567', // TODO: Get from user management system
                             style: AppTextStyles.bodySmall,
                           ),
-                          if (user.email != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              user.email!,
-                              style: AppTextStyles.bodySmall,
-                            ),
-                          ],
+                          const SizedBox(height: 2),
+                          Text(
+                            userEmail,
+                            style: AppTextStyles.bodySmall,
+                          ),
                         ],
                       ),
                     ),

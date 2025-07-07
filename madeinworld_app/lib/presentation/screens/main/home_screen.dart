@@ -482,9 +482,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             itemBuilder: (context, index) {
               return ProductCard(
                 product: products[index],
-                onTap: () {
-                  // Navigate to product detail
-                },
+                // Will use default modal behavior since onTap is null
               );
             },
           ),

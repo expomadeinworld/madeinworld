@@ -5,13 +5,17 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/models/category.dart';
 import '../../../../data/models/subcategory.dart';
 import '../../../../data/models/product.dart';
+import '../../../../data/models/store.dart';
+import '../../../../core/enums/store_type.dart';
 import '../../../widgets/common/product_card.dart';
+import '../../../widgets/common/product_details_modal.dart';
 
 class ProductListScreen extends StatelessWidget {
   final Category category;
   final Subcategory subcategory;
   final List<Product> allProducts;
   final String miniAppName;
+  final Store? selectedStore; // Add selected store context
 
   const ProductListScreen({
     super.key,
@@ -19,6 +23,7 @@ class ProductListScreen extends StatelessWidget {
     required this.subcategory,
     required this.allProducts,
     required this.miniAppName,
+    this.selectedStore, // Optional store context for location-dependent mini-apps
   });
 
   @override
@@ -32,7 +37,7 @@ class ProductListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '$miniAppName: ${category.name}: ${subcategory.name}',
+          '${category.name}: ${subcategory.name}',
           style: AppTextStyles.majorHeader,
         ),
         backgroundColor: AppColors.lightBackground,
@@ -87,11 +92,28 @@ class ProductListScreen extends StatelessWidget {
         itemCount: products.length,
         itemBuilder: (context, index) {
           final product = products[index];
+
+          // Format store name with store type prefix for location-dependent mini-apps
+          String? formattedStoreName;
+          if (selectedStore != null) {
+            final storeTypePrefix = selectedStore!.type.displayName;
+            formattedStoreName = '$storeTypePrefix: ${selectedStore!.name}';
+          }
+
           return ProductCard(
             product: product,
+            categoryName: category.name,
+            subcategoryName: subcategory.name,
+            storeName: formattedStoreName, // Pass the formatted store name
             onTap: () {
-              // Handle product tap - could navigate to product detail
-              _showProductDetail(context, product);
+              // Use the universal product details modal
+              showProductDetailsModal(
+                context: context,
+                product: product,
+                categoryName: category.name,
+                subcategoryName: subcategory.name,
+                storeName: formattedStoreName, // Pass the formatted store name
+              );
             },
           );
         },
@@ -99,117 +121,5 @@ class ProductListScreen extends StatelessWidget {
     );
   }
 
-  void _showProductDetail(BuildContext context, Product product) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        key: ValueKey('product_detail_${product.id}_${DateTime.now().millisecondsSinceEpoch}'),
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                // Handle bar
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                
-                // Product detail content
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Product image
-                        if (product.imageUrls.isNotEmpty)
-                          Container(
-                            height: 200,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: AppColors.lightBackground,
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                product.imageUrls.first,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Icon(
-                                    Icons.image_not_supported,
-                                    size: 64,
-                                    color: AppColors.secondaryText,
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Product name
-                        Text(
-                          product.title,
-                          style: AppTextStyles.majorHeader,
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // Product price
-                        Text(
-                          '¥${product.mainPrice.toStringAsFixed(2)}',
-                          style: AppTextStyles.body.copyWith(
-                            color: AppColors.themeRed,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Product description
-                        if (product.descriptionLong.isNotEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '商品描述',
-                                style: AppTextStyles.body.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                product.descriptionLong,
-                                style: AppTextStyles.body,
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+
 }

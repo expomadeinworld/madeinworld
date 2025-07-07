@@ -10,6 +10,7 @@ class Product {
   final String manufacturerId;
   final StoreType storeType;
   final MiniAppType miniAppType;
+  final String? storeId; // Store ID for location-dependent mini-apps
   final double mainPrice;
   final double? strikethroughPrice;
   final bool isActive;
@@ -19,6 +20,7 @@ class Product {
   final List<String> categoryIds;
   final List<String> subcategoryIds;
   final int? stockLeft; // Only for unmanned stores
+  final int minimumOrderQuantity; // Minimum order quantity (MOQ)
 
   Product({
     required this.id,
@@ -29,6 +31,7 @@ class Product {
     required this.manufacturerId,
     required this.storeType,
     required this.miniAppType,
+    this.storeId,
     required this.mainPrice,
     this.strikethroughPrice,
     this.isActive = true,
@@ -38,6 +41,7 @@ class Product {
     required this.categoryIds,
     this.subcategoryIds = const [],
     this.stockLeft,
+    this.minimumOrderQuantity = 1, // Default MOQ is 1
   });
 
   // Display stock with buffer (actual stock - 5)
@@ -113,6 +117,7 @@ class Product {
       manufacturerId: json['manufacturer_id'].toString(), // Convert int to string
       storeType: _parseStoreType(json['store_type']),
       miniAppType: _parseMiniAppType(json['mini_app_type']),
+      storeId: json['store_id']?.toString(), // Parse store_id for location-dependent mini-apps
       mainPrice: json['main_price'].toDouble(),
       strikethroughPrice: json['strikethrough_price']?.toDouble(),
       isActive: json['is_active'] ?? true,
@@ -122,6 +127,7 @@ class Product {
       categoryIds: List<String>.from(json['category_ids'] ?? []),
       subcategoryIds: List<String>.from(json['subcategory_ids'] ?? []),
       stockLeft: json['stock_left'],
+      minimumOrderQuantity: json['minimum_order_quantity'] ?? 1,
     );
   }
 
@@ -135,6 +141,7 @@ class Product {
       'manufacturer_id': manufacturerId,
       'store_type': storeType.toString().split('.').last,
       'mini_app_type': miniAppType.apiValue,
+      'store_id': storeId,
       'main_price': mainPrice,
       'strikethrough_price': strikethroughPrice,
       'is_active': isActive,
@@ -144,6 +151,7 @@ class Product {
       'category_ids': categoryIds,
       'subcategory_ids': subcategoryIds,
       'stock_left': stockLeft,
+      'minimum_order_quantity': minimumOrderQuantity,
     };
   }
 }

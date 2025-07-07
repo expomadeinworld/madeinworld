@@ -23,9 +23,10 @@ class SlideRightRoute<T> extends PageRouteBuilder<T> {
             // Create unique keys for this route instance
             final uniqueId = routeKey ?? DateTime.now().millisecondsSinceEpoch.toString();
 
-            // For forward navigation (entering), slide in from right
-            final enterTransition = SlideTransition(
-              key: ValueKey('enter_$uniqueId'),
+            // FIXED: Only use the child widget in the entering transition to prevent GlobalKey conflicts
+            // The exiting transition should only affect the previous page, not the current one
+            return SlideTransition(
+              key: ValueKey('slide_$uniqueId'),
               position: Tween<Offset>(
                 begin: const Offset(1.0, 0.0), // Start from right
                 end: Offset.zero, // End at normal position
@@ -35,31 +36,7 @@ class SlideRightRoute<T> extends PageRouteBuilder<T> {
                   curve: Curves.easeInOut,
                 ),
               ),
-              child: child,
-            );
-
-            // For backward navigation (exiting), slide out to right
-            final exitTransition = SlideTransition(
-              key: ValueKey('exit_$uniqueId'),
-              position: Tween<Offset>(
-                begin: Offset.zero, // Start at normal position
-                end: const Offset(1.0, 0.0), // End at right
-              ).animate(
-                CurvedAnimation(
-                  parent: secondaryAnimation,
-                  curve: Curves.easeInOut,
-                ),
-              ),
-              child: child,
-            );
-
-            // Stack both transitions with unique key
-            return Stack(
-              key: ValueKey('stack_$uniqueId'),
-              children: [
-                exitTransition,
-                enterTransition,
-              ],
+              child: child, // Only use child once to prevent GlobalKey duplication
             );
           },
           transitionDuration: const Duration(milliseconds: 300),

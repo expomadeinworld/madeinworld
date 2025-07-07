@@ -7,7 +7,8 @@ class MessagesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mockMessages = [
+    // TODO: Replace with proper messaging API integration
+    final placeholderMessages = [
       {
         'title': '订单更新',
         'message': '您的订单 #12345 已发货',
@@ -50,9 +51,9 @@ class MessagesScreen extends StatelessWidget {
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: mockMessages.length,
+        itemCount: placeholderMessages.length,
         itemBuilder: (context, index) {
-          final message = mockMessages[index];
+          final message = placeholderMessages[index];
           final isUnread = message['unread'] as bool;
           
           return Card(
