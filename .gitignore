@@ -253,6 +253,28 @@ data/
 docker-compose.override.yml
 
 # =============================================================================
+# DEVELOPMENT TOOLS & TESTING
+# =============================================================================
+# WebDriverAgent (mobile automation testing)
+WebDriverAgent/
+
+# Test files and temporary development files
+test-image.png
+test-image1.jpg
+test-image2.jpg
+test_image.txt
+error.txt
+create_test_image.py
+
+# Root level node_modules (should be in admin-panel only)
+/node_modules/
+/package-lock.json
+/package.json
+
+# Root level src folder (appears to be duplicate/test code)
+/src/
+
+# =============================================================================
 # MISC PROJECT FILES
 # =============================================================================
 # Documentation build outputs
