@@ -808,6 +808,11 @@ func (h *Handler) GetCategories(c *gin.Context) {
 		categories = append(categories, category)
 	}
 
+	// Ensure we return an empty array instead of null when no categories exist
+	if categories == nil {
+		categories = []models.Category{}
+	}
+
 	c.JSON(http.StatusOK, categories)
 }
 
@@ -845,6 +850,11 @@ func (h *Handler) getSubcategoriesForCategory(ctx context.Context, categoryID in
 		}
 
 		subcategories = append(subcategories, subcategory)
+	}
+
+	// Ensure we return an empty array instead of null when no subcategories exist
+	if subcategories == nil {
+		subcategories = []models.Subcategory{}
 	}
 
 	return subcategories, nil
@@ -973,6 +983,11 @@ func (h *Handler) GetStores(c *gin.Context) {
 		}
 
 		stores = append(stores, store)
+	}
+
+	// Ensure we return an empty array instead of null when no stores exist
+	if stores == nil {
+		stores = []models.Store{}
 	}
 
 	c.JSON(http.StatusOK, stores)
@@ -1218,6 +1233,11 @@ func (h *Handler) GetSubcategories(c *gin.Context) {
 		}
 
 		subcategories = append(subcategories, subcategory)
+	}
+
+	// Ensure we return an empty array instead of null when no subcategories exist
+	if subcategories == nil {
+		subcategories = []models.Subcategory{}
 	}
 
 	c.JSON(http.StatusOK, subcategories)

@@ -32,15 +32,27 @@ func NewDatabase() (*Database, error) {
 	config := getConfigFromEnv()
 
 	// Build connection string
-	connStr := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		config.Host,
-		config.Port,
-		config.User,
-		config.Password,
-		config.DBName,
-		config.SSLMode,
-	)
+	var connStr string
+	if config.Password == "" {
+		connStr = fmt.Sprintf(
+			"host=%s port=%d user=%s dbname=%s sslmode=%s",
+			config.Host,
+			config.Port,
+			config.User,
+			config.DBName,
+			config.SSLMode,
+		)
+	} else {
+		connStr = fmt.Sprintf(
+			"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			config.Host,
+			config.Port,
+			config.User,
+			config.Password,
+			config.DBName,
+			config.SSLMode,
+		)
+	}
 
 	// Configure connection pool
 	poolConfig, err := pgxpool.ParseConfig(connStr)
@@ -575,9 +587,10 @@ func getConfigFromEnv() Config {
 	config.Port = port
 
 	// Validate required fields
-	if config.Password == "" {
-		log.Fatal("DB_PASSWORD environment variable is required")
-	}
+	// Temporarily disabled for local development
+	// if config.Password == "" {
+	//	log.Fatal("DB_PASSWORD environment variable is required")
+	// }
 
 	return config
 }
