@@ -1,0 +1,47 @@
+Made in World Database Statistics
+=================================
+Generated on: Wed Jul  9 21:26:16 CEST 2025
+
+Table Counts:
+manufacturers                 : 7
+stores                        : 14
+product_categories            : 16
+subcategories                 : 22
+products                      : 12
+product_images                : 12
+product_category_mapping      : 12
+product_subcategory_mapping   : 12
+inventory                     : 0
+
+Product Breakdown by Store Type:
+ 展销商店   |     6
+ 无人门店   |     2
+ 展销商城   |     2
+ 无人仓店   |     2
+
+
+Product Breakdown by Mini-App Type:
+ UnmannedStore   |     4
+ ExhibitionSales |     4
+ RetailStore     |     3
+ GroupBuying     |     1
+
+
+Categories with Product Counts:
+ Chanteclair |             2
+ Chanteclair |             1
+ MAXI        |             1
+ Chanteclair |             1
+ MAXI        |             1
+ LEVISSIMA   |             1
+ MAXI        |             1
+ MAXI        |             1
+ Chanteclair |             1
+ Chanteclair |             1
+ MAXI        |             1
+ Chanteclair |             0
+ 限时优惠    |             0
+ 展销商品    |             0
+ 特色产品    |             0
+ 团购商品    |             0
+

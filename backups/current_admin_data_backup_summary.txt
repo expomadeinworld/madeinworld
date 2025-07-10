@@ -1,0 +1,27 @@
+Made in World Database Backup Summary
+=====================================
+
+Backup Details:
+- Backup Name: current_admin_data_backup
+- Timestamp: 20250709_213311
+- Database: madeinworld
+- Host: localhost:5432
+- User: imsolesong
+
+Files Created:
+- Backup: current_admin_data_backup.sql.gz
+- Summary: current_admin_data_backup_summary.txt
+
+Backup Command Used:
+pg_dump --host=localhost --port=5432 --username=imsolesong --dbname=madeinworld --verbose --clean --if-exists --create --format=plain --encoding=UTF8 --no-password
+
+Restoration Command:
+gunzip -c current_admin_data_backup.sql.gz | psql --host=<host> --port=<port> --username=<user> --dbname=<dbname>
+
+Notes:
+- This backup includes the complete database schema and all data
+- The backup is compressed using gzip
+- Use the restoration command above to restore the database
+- Ensure the target database exists before restoration
+
+Generated on: Wed Jul  9 21:33:11 CEST 2025

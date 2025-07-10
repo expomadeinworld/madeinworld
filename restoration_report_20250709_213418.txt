@@ -1,0 +1,27 @@
+Made in World Database Restoration Report
+=========================================
+Generated on: Wed Jul  9 21:34:18 CEST 2025
+Target Database: test_restoration_db
+Restore Source: seeds
+
+Restoration Summary:
+- Database recreation: SUCCESS
+- Schema initialization: SUCCESS
+- Data restoration: SUCCESS
+- Verification: SUCCESS
+
+Database Details:
+- Host: localhost:5432
+- Database: test_restoration_db
+- User: imsolesong
+
+Table Counts After Restoration:
+manufacturers                 : 7
+stores                        : 14
+product_categories            : 16
+subcategories                 : 22
+products                      : 12
+product_images                : 12
+product_category_mapping      : 12
+product_subcategory_mapping   : 12
+inventory                     : 0

@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../providers/auth_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Replace with proper user management system
-    const userName = '尊贵的用户';
-    const userEmail = 'user.name@email.com';
-    const userAvatarUrl = 'https://i.pravatar.cc/96';
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final user = authProvider.user;
+        final userName = user?.displayName ?? '尊贵的用户';
+        final userEmail = user?.email ?? 'user.name@email.com';
+        const userAvatarUrl = 'https://i.pravatar.cc/96';
     
     return Scaffold(
       appBar: AppBar(
@@ -145,9 +149,7 @@ class ProfileScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  // Logout
-                },
+                onPressed: () => _handleLogout(context, authProvider),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.lightRed,
                   foregroundColor: AppColors.themeRed,
@@ -164,6 +166,50 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+      },
+    );
+  }
+
+  void _handleLogout(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            '确认退出',
+            style: AppTextStyles.cardTitle,
+          ),
+          content: Text(
+            '您确定要退出登录吗？',
+            style: AppTextStyles.body,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                '取消',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                authProvider.logout();
+              },
+              child: Text(
+                '退出',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.themeRed,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

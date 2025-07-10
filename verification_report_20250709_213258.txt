@@ -1,0 +1,39 @@
+Made in World Database Seed Verification Report
+===============================================
+Generated on: Wed Jul  9 21:32:58 CEST 2025
+Test Database: madeinworld_test_20250709_213258
+Original Database: madeinworld
+
+Verification Summary:
+- Schema initialization: SUCCESS
+- Seed data import: SUCCESS
+- Table count verification: SUCCESS
+- Data integrity checks: SUCCESS
+
+Table Counts Comparison:
+manufacturers                 : 7 (original: 7)
+stores                        : 14 (original: 14)
+product_categories            : 16 (original: 16)
+subcategories                 : 22 (original: 22)
+products                      : 12 (original: 12)
+product_images                : 12 (original: 12)
+product_category_mapping      : 12 (original: 12)
+product_subcategory_mapping   : 12 (original: 12)
+inventory                     : 0 (original: 0)
+
+Test Database Details:
+- Host: localhost:5432
+- Database: madeinworld_test_20250709_213258
+- User: imsolesong
+
+Seed Files Used:
+-rw-r--r--@ 1 imsolesong  staff   2295 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/01_manufacturers.sql
+-rw-r--r--@ 1 imsolesong  staff   4288 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/02_stores.sql
+-rw-r--r--@ 1 imsolesong  staff   3663 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/03_product_categories.sql
+-rw-r--r--@ 1 imsolesong  staff   5689 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/04_subcategories.sql
+-rw-r--r--@ 1 imsolesong  staff   5328 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/05_products.sql
+-rw-r--r--@ 1 imsolesong  staff   3197 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/06_product_images.sql
+-rw-r--r--@ 1 imsolesong  staff   1500 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/07_product_category_mapping.sql
+-rw-r--r--@ 1 imsolesong  staff   1547 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/08_product_subcategory_mapping.sql
+-rw-r--r--@ 1 imsolesong  staff    178 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/09_inventory.sql
+-rw-r--r--@ 1 imsolesong  staff  29835 Jul  9 21:26 /Users/imsolesong/Documents/Work/EXPO Made in World APP/madeinworld/database/seeds/seed_all.sql

@@ -5,7 +5,10 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_text_styles.dart';
 import 'presentation/providers/cart_provider.dart';
 import 'presentation/providers/location_provider.dart';
+import 'presentation/providers/auth_provider.dart';
 import 'presentation/screens/main/main_screen.dart';
+import 'presentation/screens/auth/login_screen.dart';
+import 'data/models/auth_models.dart';
 
 void main() {
   // Add error handling for debugging
@@ -25,13 +28,14 @@ class MadeInWorldApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
       ],
       child: MaterialApp(
         title: 'Made in World',
         theme: AppTheme.lightTheme,
-        home: const SafeMainScreen(),
+        home: const AuthWrapper(),
         debugShowCheckedModeBanner: false,
       ),
     );
@@ -116,5 +120,68 @@ class _SafeMainScreenState extends State<SafeMainScreen> {
         ),
       );
     }
+  }
+}
+
+/// Authentication wrapper that routes to appropriate screen based on auth state
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize authentication state on app startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().initialize();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        // Show loading screen while checking authentication
+        if (authProvider.state.status == AuthStatus.unknown ||
+            authProvider.state.status == AuthStatus.loading) {
+          return const Scaffold(
+            backgroundColor: AppColors.lightBackground,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppColors.themeRed),
+                  SizedBox(height: 16),
+                  Text(
+                    'Made in World',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryText,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '正在加载...',
+                    style: TextStyle(color: AppColors.secondaryText),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Route to appropriate screen based on authentication status
+        if (authProvider.isAuthenticated) {
+          return const SafeMainScreen();
+        } else {
+          return const LoginScreen();
+        }
+      },
+    );
   }
 }

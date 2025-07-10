@@ -1,52 +1,60 @@
 class User {
   final String id;
-  final String phoneNumber;
-  final String fullName;
-  final String? email;
-  final String? avatarUrl;
-  final UserRole role;
+  final String username;
+  final String email;
+  final String? phone;
+  final String? firstName;
+  final String? lastName;
   final DateTime createdAt;
-  final DateTime? lastLogin;
+  final DateTime updatedAt;
 
   User({
     required this.id,
-    required this.phoneNumber,
-    required this.fullName,
-    this.email,
-    this.avatarUrl,
-    required this.role,
+    required this.username,
+    required this.email,
+    this.phone,
+    this.firstName,
+    this.lastName,
     required this.createdAt,
-    this.lastLogin,
+    required this.updatedAt,
   });
 
+  // Create User from auth service response
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'],
-      phoneNumber: json['phone_number'],
-      fullName: json['full_name'],
+      username: json['username'],
       email: json['email'],
-      avatarUrl: json['avatar_url'],
-      role: UserRole.values.firstWhere(
-        (e) => e.toString().split('.').last == json['role'],
-      ),
+      phone: json['phone'],
+      firstName: json['first_name'],
+      lastName: json['last_name'],
       createdAt: DateTime.parse(json['created_at']),
-      lastLogin: json['last_login'] != null 
-          ? DateTime.parse(json['last_login']) 
-          : null,
+      updatedAt: DateTime.parse(json['updated_at']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'phone_number': phoneNumber,
-      'full_name': fullName,
+      'username': username,
       'email': email,
-      'avatar_url': avatarUrl,
-      'role': role.toString().split('.').last,
+      'phone': phone,
+      'first_name': firstName,
+      'last_name': lastName,
       'created_at': createdAt.toIso8601String(),
-      'last_login': lastLogin?.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
     };
+  }
+
+  // Get display name (firstName lastName or username as fallback)
+  String get displayName {
+    if (firstName != null && lastName != null) {
+      return '$firstName $lastName';
+    } else if (firstName != null) {
+      return firstName!;
+    } else {
+      return username;
+    }
   }
 }
 
