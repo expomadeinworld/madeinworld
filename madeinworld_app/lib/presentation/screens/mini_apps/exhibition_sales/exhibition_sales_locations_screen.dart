@@ -11,8 +11,6 @@ import '../../../../data/models/store.dart';
 import '../../../../data/services/api_service.dart';
 import '../../../../core/enums/store_type.dart';
 import '../../../providers/location_provider.dart';
-import '../../../../core/navigation/custom_page_transitions.dart';
-import 'exhibition_sales_screen.dart';
 
 class ExhibitionSalesLocationsScreen extends StatefulWidget {
   const ExhibitionSalesLocationsScreen({super.key});
@@ -116,8 +114,6 @@ class _ExhibitionSalesLocationsScreenState extends State<ExhibitionSalesLocation
                     Expanded(
                       child: Row(
                         children: [
-                          _buildBackButton(), // Uses the new method
-                          const SizedBox(width: 12),
                           Expanded(child: _buildSearchBar()), // Uses the new method
                         ],
                       ),
@@ -244,38 +240,7 @@ class _ExhibitionSalesLocationsScreenState extends State<ExhibitionSalesLocation
     );
   }
 
-  Widget _buildBackButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IconButton(
-        onPressed: () {
-          // Navigate back to the main exhibition sales screen
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            Navigator.of(context).pushReplacement(
-              SlideAwayRoute(
-                page: const ExhibitionSalesScreen(),
-                routeKey: 'exhibition_back_${DateTime.now().millisecondsSinceEpoch}',
-              ),
-            );
-          }
-        },
-        icon: const Icon(Icons.chevron_left, size: 28),
-        color: AppColors.primaryText,
-      ),
-    );
-  }
+
 
   Widget _buildSearchBar() {
     return Container(

@@ -14,10 +14,12 @@ class ProductDetailsModal extends StatefulWidget {
   final String? categoryName;
   final String? subcategoryName;
   final String? storeName;
+  final VoidCallback onClose;
 
   const ProductDetailsModal({
     super.key,
     required this.product,
+    required this.onClose,
     this.categoryName,
     this.subcategoryName,
     this.storeName,
@@ -58,27 +60,34 @@ class _ProductDetailsModalState extends State<ProductDetailsModal>
   void _closeModal() {
     _animationController.reverse().then((_) {
       if (mounted) {
-        Navigator.of(context).pop();
+        widget.onClose();
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Scaffold(
-          backgroundColor: Colors.black.withValues(alpha: 0.5 * _animation.value), // Natural fade-in dimming
-          body: GestureDetector(
+    return Stack(
+      children: [
+        // Background dimming overlay
+        Container(
+          color: Colors.black.withValues(alpha: 0.5), // Static background
+          child: GestureDetector(
             onTap: _closeModal, // Close when tapping outside
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: GestureDetector(
-                onTap: () {}, // Prevent closing when tapping on modal content
-                child: Transform.translate(
-                  offset: Offset(0, (1 - _animation.value) * 400), // Only modal content slides up
-                  child: NotificationListener<DraggableScrollableNotification>(
+            child: Container(), // Empty container to capture taps
+          ),
+        ),
+        // Modal content with slide animation
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: GestureDetector(
+            onTap: () {}, // Prevent closing when tapping on modal content
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 1),
+                end: Offset.zero,
+              ).animate(_animation),
+              child: NotificationListener<DraggableScrollableNotification>(
                     onNotification: (notification) {
                       // Close modal when dragged down below minimum threshold
                       if (notification.extent <= 0.45) {
@@ -90,9 +99,9 @@ class _ProductDetailsModalState extends State<ProductDetailsModal>
                       controller: _draggableController,
                       initialChildSize: 0.7,
                       minChildSize: 0.5,
-                      maxChildSize: 0.95,
+                      maxChildSize: 0.85, // Reduced from 0.95 to leave space for navigation bar
                       snap: true,
-                      snapSizes: const [0.5, 0.7, 0.95],
+                      snapSizes: const [0.5, 0.7, 0.85], // Updated snap sizes
                       builder: (context, scrollController) {
                         return Container(
                           decoration: const BoxDecoration(
@@ -128,10 +137,8 @@ class _ProductDetailsModalState extends State<ProductDetailsModal>
                 ),
               ),
             ),
-          ),
+          ],
         );
-      },
-    );
   }
 
   Widget _buildHeader() {
@@ -342,12 +349,26 @@ class _ProductDetailsModalState extends State<ProductDetailsModal>
       debugPrint('🔍 ProductDetailsModal: No subcategory name provided');
     }
 
-    // Store location tag (only for location-dependent mini-apps)
+    // Store location and store type tags (only for location-dependent mini-apps)
     if (_shouldShowStoreTag() && widget.storeName != null && widget.storeName!.isNotEmpty) {
-      debugPrint('🔍 ProductDetailsModal: Adding store location tag: ${widget.storeName}');
+      // Extract store name from formatted string (e.g., "无人门店: MANOR Lugano" -> "MANOR Lugano")
+      String storeLocationName = widget.storeName!;
+      if (widget.storeName!.contains(': ')) {
+        storeLocationName = widget.storeName!.split(': ').last;
+      }
+
+      debugPrint('🔍 ProductDetailsModal: Adding store location tag: $storeLocationName');
       tags.add(ProductTag(
-        text: widget.storeName!,
+        text: storeLocationName,
         type: ProductTagType.storeLocation,
+        storeType: widget.product.storeType,
+      ));
+
+      // Add store type tag as a separate tag
+      debugPrint('🔍 ProductDetailsModal: Adding store type tag: ${widget.product.storeType.displayName}');
+      tags.add(ProductTag(
+        text: widget.product.storeType.displayName,
+        type: ProductTagType.storeType,
         storeType: widget.product.storeType,
       ));
     } else {
@@ -394,27 +415,4 @@ class _ProductDetailsModalState extends State<ProductDetailsModal>
   }
 }
 
-/// Helper function to show the product details modal
-void showProductDetailsModal({
-  required BuildContext context,
-  required Product product,
-  String? categoryName,
-  String? subcategoryName,
-  String? storeName,
-}) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    isDismissible: true,
-    enableDrag: true,
-    useSafeArea: true,
-    transitionAnimationController: null, // Use default bottom-to-top animation
-    builder: (context) => ProductDetailsModal(
-      product: product,
-      categoryName: categoryName,
-      subcategoryName: subcategoryName,
-      storeName: storeName,
-    ),
-  );
-}
+

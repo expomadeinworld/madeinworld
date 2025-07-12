@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/mini_app_navigation.dart';
 import '../../../data/models/product.dart';
 import '../../providers/cart_provider.dart';
 
 class AddToCartButton extends StatelessWidget {
   final Product product;
+  final bool isInHotRecommendations;
 
   const AddToCartButton({
     super.key,
     required this.product,
+    this.isInHotRecommendations = false,
   });
 
   @override
@@ -24,6 +27,11 @@ class AddToCartButton extends StatelessWidget {
             onTap: () {
               cartProvider.addProduct(product);
               _showAddToCartFeedback(context);
+
+              // If in hot recommendations, redirect to mini-app cart
+              if (isInHotRecommendations) {
+                _handleHotRecommendationRedirect(context);
+              }
             },
             child: Container(
               width: 36,
@@ -125,5 +133,14 @@ class AddToCartButton extends StatelessWidget {
   void _showAddToCartFeedback(BuildContext context) {
     // Simple scale animation feedback
     // In a real app, you might want to show a snackbar or more elaborate animation
+  }
+
+  void _handleHotRecommendationRedirect(BuildContext context) {
+    // Add a small delay to allow the cart update to complete and show feedback
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (context.mounted) {
+        MiniAppNavigation.navigateToMiniAppCart(context, product);
+      }
+    });
   }
 }

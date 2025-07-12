@@ -8,14 +8,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../core/navigation/custom_page_transitions.dart';
 import '../../../core/utils/responsive_utils.dart';
 import '../../../core/utils/map_marker_utils.dart';
 import '../../../data/models/store.dart';
 import '../../../data/services/api_service.dart';
 import '../../../core/enums/store_type.dart';
 import '../../providers/location_provider.dart';
-import 'main_screen.dart';
 
 
 class LocationsScreen extends StatefulWidget {
@@ -113,13 +111,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
                   // Align the top of the left-side controls and the top of the legend
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // This Expanded widget contains the back button and search bar
+                    // This Expanded widget contains the search bar
                     Expanded(
                       child: Row(
                         children: [
-                          // Back button will be created in the next step
-                          _buildBackButton(),
-                          const SizedBox(width: 12),
                           // Search bar will be created in the next step
                           Expanded(child: _buildSearchBar()),
                         ],
@@ -364,37 +359,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
     );
   }
 
-  Widget _buildBackButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IconButton(
-        onPressed: () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          } else {
-            Navigator.of(context).pushReplacement(
-              SlideAwayRoute(
-                page: const MainScreen(),
-                routeKey: 'main_back_${DateTime.now().millisecondsSinceEpoch}',
-              ),
-            );
-          }
-        },
-        icon: const Icon(Icons.chevron_left, size: 28),
-        color: AppColors.primaryText,
-      ),
-    );
-  }
+
 
   Widget _buildSearchBar() {
     return Container(

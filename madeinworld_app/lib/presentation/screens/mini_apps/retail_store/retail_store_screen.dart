@@ -12,6 +12,7 @@ import '../../../../core/enums/store_type.dart';
 import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
+import '../../../widgets/common/product_details_modal.dart';
 import '../../../providers/cart_provider.dart';
 import '../../cart/cart_screen.dart';
 import '../common/product_list_screen.dart';
@@ -27,13 +28,44 @@ class RetailStoreScreen extends StatefulWidget {
 
 class _RetailStoreScreenState extends State<RetailStoreScreen> {
   int _currentIndex = 0;
-  
-  final List<Widget> _screens = [
-    const _ProductsTab(key: ValueKey('retail_products')),
-    const _MessagesTab(key: ValueKey('retail_messages')),
+
+  // Product details state management
+  Product? _selectedProduct;
+  String? _selectedCategoryName;
+  String? _selectedSubcategoryName;
+  String? _selectedStoreName;
+
+  List<Widget> get _screens => [
+    _ProductsTab(
+      key: const ValueKey('retail_products'),
+      onProductTap: _showProductDetails,
+    ),
     const _CartTab(key: ValueKey('retail_cart')),
+    const _MessagesTab(key: ValueKey('retail_messages')),
     const _ProfileTab(key: ValueKey('retail_profile')),
   ];
+
+  void _showProductDetails(Product product, {
+    String? categoryName,
+    String? subcategoryName,
+    String? storeName,
+  }) {
+    setState(() {
+      _selectedProduct = product;
+      _selectedCategoryName = categoryName;
+      _selectedSubcategoryName = subcategoryName;
+      _selectedStoreName = storeName;
+    });
+  }
+
+  void _hideProductDetails() {
+    setState(() {
+      _selectedProduct = null;
+      _selectedCategoryName = null;
+      _selectedSubcategoryName = null;
+      _selectedStoreName = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,10 +88,25 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        key: const ValueKey('retail_indexed_stack'),
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          // Main content
+          IndexedStack(
+            key: const ValueKey('retail_indexed_stack'),
+            index: _currentIndex,
+            children: _screens,
+          ),
+          // Product details overlay
+          if (_selectedProduct != null)
+            ProductDetailsModal(
+              key: ValueKey('product_details_${_selectedProduct!.id}'),
+              product: _selectedProduct!,
+              onClose: _hideProductDetails,
+              categoryName: _selectedCategoryName,
+              subcategoryName: _selectedSubcategoryName,
+              storeName: _selectedStoreName,
+            ),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -80,19 +127,19 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
               children: [
                 _buildNavItem(
                   index: 0,
-                  icon: Icons.shopping_bag,
-                  label: '商品',
+                  icon: Icons.home,
+                  label: '首页',
                 ),
                 _buildNavItem(
                   index: 1,
-                  icon: Icons.message,
-                  label: '消息',
-                ),
-                _buildNavItem(
-                  index: 2,
                   icon: Icons.shopping_cart,
                   label: '购物车',
                   showBadge: true,
+                ),
+                _buildNavItem(
+                  index: 2,
+                  icon: Icons.message,
+                  label: '消息',
                 ),
                 _buildNavItem(
                   index: 3,
@@ -127,6 +174,7 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Stack(
+              clipBehavior: Clip.none, // Allow badge to overflow without clipping
               children: [
                 Icon(
                   icon,
@@ -137,19 +185,19 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
                   Consumer<CartProvider>(
                     builder: (context, cartProvider, child) {
                       if (cartProvider.itemCount == 0) return const SizedBox.shrink();
-                      
+
                       return Positioned(
-                        right: -6,
-                        top: -6,
+                        right: -8,
+                        top: -8,
                         child: Container(
-                          padding: const EdgeInsets.all(2),
+                          padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
                             color: AppColors.themeRed,
                             shape: BoxShape.circle,
                           ),
                           constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
+                            minWidth: 18,
+                            minHeight: 18,
                           ),
                           child: Text(
                             cartProvider.itemCount.toString(),
@@ -179,7 +227,12 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
 }
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab({super.key});
+  final Function(Product, {String? categoryName, String? subcategoryName, String? storeName})? onProductTap;
+
+  const _ProductsTab({
+    super.key,
+    this.onProductTap,
+  });
 
   @override
   State<_ProductsTab> createState() => _ProductsTabState();
@@ -382,6 +435,7 @@ class _ProductsTabState extends State<_ProductsTab> {
               subcategory: subcategory,
               allProducts: allProducts,
               miniAppName: '零售门店',
+              onProductTap: widget.onProductTap,
             ),
             routeKey: 'retail_subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
           ),
@@ -473,6 +527,41 @@ class _ProductsTabState extends State<_ProductsTab> {
 
 
 
+  /// Resolves category, subcategory, and store names for a product
+  Future<Map<String, String?>> _resolveProductTagData(Product product) async {
+    try {
+      String? categoryName;
+      String? subcategoryName;
+
+      // Resolve category and subcategory names from the fetched categories
+      final categories = await _categoriesFuture;
+      for (final category in categories) {
+        // Find subcategory that matches the product's subcategory IDs
+        for (final subcategory in category.subcategories) {
+          if (product.subcategoryIds.contains(subcategory.id)) {
+            categoryName = category.name;
+            subcategoryName = subcategory.name;
+            break;
+          }
+        }
+        if (categoryName != null) break;
+      }
+
+      return {
+        'categoryName': categoryName,
+        'subcategoryName': subcategoryName,
+        'storeName': null, // Retail store doesn't show store name tags
+      };
+    } catch (e) {
+      debugPrint('🔍 Error resolving product tag data: $e');
+      return {
+        'categoryName': null,
+        'subcategoryName': null,
+        'storeName': null,
+      };
+    }
+  }
+
   /// Builds the product grid
   Widget _buildProductGrid(List<Product> products) {
     if (products.isEmpty) {
@@ -487,9 +576,26 @@ class _ProductsTabState extends State<_ProductsTab> {
         mainAxisSpacing: 12,
         itemCount: products.length,
         itemBuilder: (context, index) {
-          return ProductCard(
-            product: products[index],
-            // Will use default modal behavior since onTap is null
+          final product = products[index];
+
+          return FutureBuilder<Map<String, String?>>(
+            future: _resolveProductTagData(product),
+            builder: (context, snapshot) {
+              final tagData = snapshot.data ?? {};
+
+              return ProductCard(
+                product: product,
+                categoryName: tagData['categoryName'],
+                subcategoryName: tagData['subcategoryName'],
+                storeName: tagData['storeName'],
+                onTap: widget.onProductTap != null
+                    ? () => widget.onProductTap!(product,
+                        categoryName: tagData['categoryName'],
+                        subcategoryName: tagData['subcategoryName'],
+                        storeName: tagData['storeName'])
+                    : null,
+              );
+            },
           );
         },
       ),

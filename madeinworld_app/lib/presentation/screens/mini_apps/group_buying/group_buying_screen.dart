@@ -12,6 +12,7 @@ import '../../../../core/enums/store_type.dart';
 import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
+import '../../../widgets/common/product_details_modal.dart';
 import '../common/product_list_screen.dart';
 import '../../../../core/navigation/custom_page_transitions.dart';
 import '../../../../core/config/api_config.dart';
@@ -26,9 +27,39 @@ class GroupBuyingScreen extends StatefulWidget {
 class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const _ProductsTab(key: ValueKey('group_products')),
-    const _GroupsTab(key: ValueKey('group_groups')),
+  // Product details state management
+  Product? _selectedProduct;
+  String? _selectedCategoryName;
+  String? _selectedSubcategoryName;
+  String? _selectedStoreName;
+
+  void _showProductDetails(Product product, {
+    String? categoryName,
+    String? subcategoryName,
+    String? storeName,
+  }) {
+    setState(() {
+      _selectedProduct = product;
+      _selectedCategoryName = categoryName;
+      _selectedSubcategoryName = subcategoryName;
+      _selectedStoreName = storeName;
+    });
+  }
+
+  void _hideProductDetails() {
+    setState(() {
+      _selectedProduct = null;
+      _selectedCategoryName = null;
+      _selectedSubcategoryName = null;
+      _selectedStoreName = null;
+    });
+  }
+
+  List<Widget> get _screens => [
+    _ProductsTab(
+      key: const ValueKey('group_products'),
+      onProductTap: _showProductDetails,
+    ),
     const _MessagesTab(key: ValueKey('group_messages')),
     const _ProfileTab(key: ValueKey('group_profile')),
   ];
@@ -48,10 +79,25 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        key: const ValueKey('group_indexed_stack'),
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          // Main content
+          IndexedStack(
+            key: const ValueKey('group_indexed_stack'),
+            index: _currentIndex,
+            children: _screens,
+          ),
+          // Product details overlay
+          if (_selectedProduct != null)
+            ProductDetailsModal(
+              key: ValueKey('product_details_${_selectedProduct!.id}'),
+              product: _selectedProduct!,
+              onClose: _hideProductDetails,
+              categoryName: _selectedCategoryName,
+              subcategoryName: _selectedSubcategoryName,
+              storeName: _selectedStoreName,
+            ),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -64,43 +110,22 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
           child: SizedBox(
             height: 80,
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Left nav items
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildNavItem(
-                        index: 0,
-                        icon: Icons.shopping_basket,
-                        label: '团购',
-                      ),
-                      _buildNavItem(index: 1, icon: Icons.group, label: '团组'),
-                    ],
-                  ),
+                _buildNavItem(
+                  index: 0,
+                  icon: Icons.home,
+                  label: '首页',
                 ),
-
-                // Center floating action button
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  child: FloatingActionButton(
-                    onPressed: () {
-                      // Create new group buying
-                    },
-                    backgroundColor: AppColors.themeRed,
-                    child: const Icon(Icons.add, color: Colors.white),
-                  ),
+                _buildNavItem(
+                  index: 1,
+                  icon: Icons.message,
+                  label: '消息',
                 ),
-
-                // Right nav items
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildNavItem(index: 2, icon: Icons.message, label: '消息'),
-                      _buildNavItem(index: 3, icon: Icons.person, label: '我的'),
-                    ],
-                  ),
+                _buildNavItem(
+                  index: 2,
+                  icon: Icons.person,
+                  label: '我的',
                 ),
               ],
             ),
@@ -148,7 +173,12 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
 }
 
 class _ProductsTab extends StatefulWidget {
-  const _ProductsTab({super.key});
+  final Function(Product, {String? categoryName, String? subcategoryName, String? storeName})? onProductTap;
+
+  const _ProductsTab({
+    super.key,
+    this.onProductTap,
+  });
 
   @override
   State<_ProductsTab> createState() => _ProductsTabState();
@@ -346,6 +376,7 @@ class _ProductsTabState extends State<_ProductsTab> {
               subcategory: subcategory,
               allProducts: allProducts,
               miniAppName: '团购团批',
+              onProductTap: widget.onProductTap,
             ),
             routeKey: 'group_subcategory_${subcategory.id}_${DateTime.now().millisecondsSinceEpoch}',
           ),
@@ -435,6 +466,41 @@ class _ProductsTabState extends State<_ProductsTab> {
     return '${ApiConfig.baseUrl}$imageUrl';
   }
 
+  /// Resolves category, subcategory, and store names for a product
+  Future<Map<String, String?>> _resolveProductTagData(Product product) async {
+    try {
+      String? categoryName;
+      String? subcategoryName;
+
+      // Resolve category and subcategory names from the fetched categories
+      final categories = await _categoriesFuture;
+      for (final category in categories) {
+        // Find subcategory that matches the product's subcategory IDs
+        for (final subcategory in category.subcategories) {
+          if (product.subcategoryIds.contains(subcategory.id)) {
+            categoryName = category.name;
+            subcategoryName = subcategory.name;
+            break;
+          }
+        }
+        if (categoryName != null) break;
+      }
+
+      return {
+        'categoryName': categoryName,
+        'subcategoryName': subcategoryName,
+        'storeName': null, // Group buying doesn't show store name tags
+      };
+    } catch (e) {
+      debugPrint('🔍 Error resolving product tag data: $e');
+      return {
+        'categoryName': null,
+        'subcategoryName': null,
+        'storeName': null,
+      };
+    }
+  }
+
   /// Builds the product grid
   Widget _buildProductGrid(List<Product> products) {
     if (products.isEmpty) {
@@ -449,9 +515,26 @@ class _ProductsTabState extends State<_ProductsTab> {
         mainAxisSpacing: 12,
         itemCount: products.length,
         itemBuilder: (context, index) {
-          return ProductCard(
-            product: products[index],
-            // Will use default modal behavior since onTap is null
+          final product = products[index];
+
+          return FutureBuilder<Map<String, String?>>(
+            future: _resolveProductTagData(product),
+            builder: (context, snapshot) {
+              final tagData = snapshot.data ?? {};
+
+              return ProductCard(
+                product: product,
+                categoryName: tagData['categoryName'],
+                subcategoryName: tagData['subcategoryName'],
+                storeName: tagData['storeName'],
+                onTap: widget.onProductTap != null
+                    ? () => widget.onProductTap!(product,
+                        categoryName: tagData['categoryName'],
+                        subcategoryName: tagData['subcategoryName'],
+                        storeName: tagData['storeName'])
+                    : null,
+              );
+            },
           );
         },
       ),
@@ -503,15 +586,6 @@ class _ProductsTabState extends State<_ProductsTab> {
     }
 
     return result;
-  }
-}
-
-class _GroupsTab extends StatelessWidget {
-  const _GroupsTab({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('团购组织功能开发中...'));
   }
 }
 

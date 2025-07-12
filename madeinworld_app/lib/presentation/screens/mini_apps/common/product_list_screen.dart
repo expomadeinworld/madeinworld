@@ -10,12 +10,13 @@ import '../../../../core/enums/store_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/product_details_modal.dart';
 
-class ProductListScreen extends StatelessWidget {
+class ProductListScreen extends StatefulWidget {
   final Category category;
   final Subcategory subcategory;
   final List<Product> allProducts;
   final String miniAppName;
   final Store? selectedStore; // Add selected store context
+  final Function(Product, {String? categoryName, String? subcategoryName, String? storeName})? onProductTap;
 
   const ProductListScreen({
     super.key,
@@ -24,20 +25,54 @@ class ProductListScreen extends StatelessWidget {
     required this.allProducts,
     required this.miniAppName,
     this.selectedStore, // Optional store context for location-dependent mini-apps
+    this.onProductTap,
   });
+
+  @override
+  State<ProductListScreen> createState() => _ProductListScreenState();
+}
+
+class _ProductListScreenState extends State<ProductListScreen> {
+  // Product details state management
+  Product? _selectedProduct;
+  String? _selectedCategoryName;
+  String? _selectedSubcategoryName;
+  String? _selectedStoreName;
+
+  void _showProductDetails(Product product, {
+    String? categoryName,
+    String? subcategoryName,
+    String? storeName,
+  }) {
+    setState(() {
+      _selectedProduct = product;
+      _selectedCategoryName = categoryName;
+      _selectedSubcategoryName = subcategoryName;
+      _selectedStoreName = storeName;
+    });
+  }
+
+  void _hideProductDetails() {
+    setState(() {
+      _selectedProduct = null;
+      _selectedCategoryName = null;
+      _selectedSubcategoryName = null;
+      _selectedStoreName = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     // Filter products for this subcategory
-    final products = allProducts
-        .where((product) => 
-            product.subcategoryIds.contains(subcategory.id.toString()))
+    final products = widget.allProducts
+        .where((product) =>
+            product.subcategoryIds.contains(widget.subcategory.id.toString()))
         .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '${category.name}: ${subcategory.name}',
+          '${widget.category.name}: ${widget.subcategory.name}',
           style: AppTextStyles.majorHeader,
         ),
         backgroundColor: AppColors.lightBackground,
@@ -47,9 +82,24 @@ class ProductListScreen extends StatelessWidget {
           icon: const Icon(Icons.chevron_left, color: AppColors.primaryText),
         ),
       ),
-      body: products.isEmpty
-          ? _buildEmptyState()
-          : _buildProductGrid(products),
+      body: Stack(
+        children: [
+          // Main content
+          products.isEmpty
+              ? _buildEmptyState()
+              : _buildProductGrid(products),
+          // Product details overlay
+          if (_selectedProduct != null)
+            ProductDetailsModal(
+              key: ValueKey('product_details_${_selectedProduct!.id}'),
+              product: _selectedProduct!,
+              onClose: _hideProductDetails,
+              categoryName: _selectedCategoryName,
+              subcategoryName: _selectedSubcategoryName,
+              storeName: _selectedStoreName,
+            ),
+        ],
+      ),
     );
   }
 
@@ -95,26 +145,22 @@ class ProductListScreen extends StatelessWidget {
 
           // Format store name with store type prefix for location-dependent mini-apps
           String? formattedStoreName;
-          if (selectedStore != null) {
-            final storeTypePrefix = selectedStore!.type.displayName;
-            formattedStoreName = '$storeTypePrefix: ${selectedStore!.name}';
+          if (widget.selectedStore != null) {
+            final storeTypePrefix = widget.selectedStore!.type.displayName;
+            formattedStoreName = '$storeTypePrefix: ${widget.selectedStore!.name}';
           }
 
           return ProductCard(
             product: product,
-            categoryName: category.name,
-            subcategoryName: subcategory.name,
+            categoryName: widget.category.name,
+            subcategoryName: widget.subcategory.name,
             storeName: formattedStoreName, // Pass the formatted store name
-            onTap: () {
-              // Use the universal product details modal
-              showProductDetailsModal(
-                context: context,
-                product: product,
-                categoryName: category.name,
-                subcategoryName: subcategory.name,
-                storeName: formattedStoreName, // Pass the formatted store name
-              );
-            },
+            onTap: () => _showProductDetails(
+              product,
+              categoryName: widget.category.name,
+              subcategoryName: widget.subcategory.name,
+              storeName: formattedStoreName,
+            ),
           );
         },
       ),

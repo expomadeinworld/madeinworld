@@ -104,11 +104,20 @@ class LocationService {
       }
 
       debugPrint('Getting current position...');
-      // Get current position
-      _currentPosition = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15), // Increased timeout
-      );
+      // Get current position with increased timeout and fallback accuracy
+      try {
+        _currentPosition = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 30), // Increased timeout to 30 seconds
+        );
+      } catch (e) {
+        debugPrint('High accuracy failed, trying medium accuracy: $e');
+        // Fallback to medium accuracy if high accuracy fails
+        _currentPosition = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: const Duration(seconds: 20), // Shorter timeout for fallback
+        );
+      }
 
       debugPrint('Got position: ${_currentPosition?.latitude}, ${_currentPosition?.longitude}');
       return _currentPosition;

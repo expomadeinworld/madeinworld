@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../data/models/auth_models.dart';
@@ -66,7 +67,7 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('AuthProvider: Found stored token, validating...');
 
       // Validate the stored token
-      final profileResponse = await _authService.validateToken(storedToken);
+      await _authService.validateToken(storedToken);
       
       // Get stored user data
       final storedUserJson = await _secureStorage.read(key: _userKey);
@@ -77,10 +78,8 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
-      // Parse stored user data
-      final userData = Map<String, dynamic>.from(
-        Map.from(Uri.splitQueryString(storedUserJson))
-      );
+      // Parse stored user data from JSON
+      final userData = json.decode(storedUserJson) as Map<String, dynamic>;
       final user = User.fromJson(userData);
 
       debugPrint('AuthProvider: Token validation successful for user: ${user.email}');
@@ -189,7 +188,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _storeAuthData(String token, User user) async {
     try {
       await _secureStorage.write(key: _tokenKey, value: token);
-      await _secureStorage.write(key: _userKey, value: user.toJson().toString());
+      await _secureStorage.write(key: _userKey, value: json.encode(user.toJson()));
       debugPrint('AuthProvider: Authentication data stored successfully');
     } catch (e) {
       debugPrint('AuthProvider: Failed to store auth data: $e');
@@ -215,8 +214,5 @@ class AuthProvider extends ChangeNotifier {
     debugPrint('AuthProvider: State updated to: ${newState.status}');
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
+
 }

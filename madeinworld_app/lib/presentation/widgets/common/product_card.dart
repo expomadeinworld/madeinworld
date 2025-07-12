@@ -5,9 +5,9 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive_utils.dart';
 import '../../../data/models/product.dart';
 import '../../../core/enums/store_type.dart';
+import '../../../core/utils/mini_app_navigation.dart';
 import '../../../data/services/product_data_resolver.dart';
 import 'add_to_cart_button.dart';
-import 'product_details_modal.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -15,6 +15,7 @@ class ProductCard extends StatelessWidget {
   final String? categoryName;
   final String? subcategoryName;
   final String? storeName;
+  final bool isInHotRecommendations;
 
   const ProductCard({
     super.key,
@@ -23,13 +24,14 @@ class ProductCard extends StatelessWidget {
     this.categoryName,
     this.subcategoryName,
     this.storeName,
+    this.isInHotRecommendations = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        onTap: onTap ?? () => _showProductDetails(context),
+        onTap: onTap ?? () => _handleProductTap(context),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: EdgeInsets.all(ResponsiveUtils.getResponsiveSpacing(context, 12)),
@@ -126,7 +128,10 @@ class ProductCard extends StatelessWidget {
                   ),
                   
                   // Add to Cart Button
-                  AddToCartButton(product: product),
+                  AddToCartButton(
+                    product: product,
+                    isInHotRecommendations: isInHotRecommendations,
+                  ),
                 ],
               ),
             ],
@@ -134,6 +139,22 @@ class ProductCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _handleProductTap(BuildContext context) async {
+    if (isInHotRecommendations) {
+      // For hot recommendations, navigate to mini-app and show modal
+      MiniAppNavigation.showProductDetailsWithMiniAppBackground(
+        context,
+        product,
+        categoryName: categoryName,
+        subcategoryName: subcategoryName,
+        storeName: storeName,
+      );
+    } else {
+      // Normal behavior: show product details modal
+      _showProductDetails(context);
+    }
   }
 
   void _showProductDetails(BuildContext context) async {
@@ -175,13 +196,9 @@ class ProductCard extends StatelessWidget {
     // Check if widget is still mounted before using context
     if (!context.mounted) return;
 
-    debugPrint('🔍 ProductCard: Showing modal with - Category: $resolvedCategoryName, Subcategory: $resolvedSubcategoryName, Store: $resolvedStoreName');
-    showProductDetailsModal(
-      context: context,
-      product: product,
-      categoryName: resolvedCategoryName,
-      subcategoryName: resolvedSubcategoryName,
-      storeName: resolvedStoreName,
-    );
+    debugPrint('🔍 ProductCard: No onTap callback provided, product details cannot be shown');
+    debugPrint('🔍 ProductCard: Product ${product.id} (${product.title}) requires parent widget to handle product details display');
+    // Note: This method should not be called when onTap is null
+    // All ProductCard instances should now provide an onTap callback
   }
 }

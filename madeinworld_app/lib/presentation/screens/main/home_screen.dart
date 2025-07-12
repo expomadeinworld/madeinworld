@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/responsive_utils.dart';
+import '../../../core/enums/mini_app_type.dart';
+import '../../../core/enums/store_type.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/models/product.dart';
 import '../../widgets/decorative_backdrop.dart';
@@ -79,6 +81,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return products;
       });
     });
+  }
+
+  /// Resolves category, subcategory, and store names for a product in hot recommendations
+  Future<Map<String, String?>> _resolveProductTagData(Product product) async {
+    try {
+      String? categoryName;
+      String? subcategoryName;
+      String? storeName;
+
+      // Fetch categories to resolve names
+      final categories = await _apiService.fetchCategoriesWithFilters(
+        miniAppType: product.miniAppType,
+        includeSubcategories: true,
+      );
+
+      // Find matching category and subcategory
+      for (final category in categories) {
+        for (final subcategory in category.subcategories) {
+          if (product.subcategoryIds.contains(subcategory.id)) {
+            categoryName = category.name;
+            subcategoryName = subcategory.name;
+            break;
+          }
+        }
+        if (categoryName != null) break;
+      }
+
+      // For location-dependent mini-apps, resolve store name
+      if (product.miniAppType == MiniAppType.unmannedStore ||
+          product.miniAppType == MiniAppType.exhibitionSales) {
+        if (product.storeId != null) {
+          try {
+            final stores = await _apiService.fetchStores();
+            final store = stores.firstWhere(
+              (s) => s.id == product.storeId,
+              orElse: () => throw Exception('Store not found'),
+            );
+            storeName = '${store.type.displayName}: ${store.name}';
+          } catch (e) {
+            debugPrint('🔍 Error resolving store name: $e');
+          }
+        }
+      }
+
+      return {
+        'categoryName': categoryName,
+        'subcategoryName': subcategoryName,
+        'storeName': storeName,
+      };
+    } catch (e) {
+      debugPrint('🔍 Error resolving product tag data: $e');
+      return {
+        'categoryName': null,
+        'subcategoryName': null,
+        'storeName': null,
+      };
+    }
   }
 
   @override
@@ -480,9 +539,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             mainAxisSpacing: ResponsiveUtils.getResponsiveSpacing(context, 12),
             itemCount: products.length,
             itemBuilder: (context, index) {
-              return ProductCard(
-                product: products[index],
-                // Will use default modal behavior since onTap is null
+              final product = products[index];
+
+              return FutureBuilder<Map<String, String?>>(
+                future: _resolveProductTagData(product),
+                builder: (context, snapshot) {
+                  final tagData = snapshot.data ?? {};
+
+                  return ProductCard(
+                    product: product,
+                    categoryName: tagData['categoryName'],
+                    subcategoryName: tagData['subcategoryName'],
+                    storeName: tagData['storeName'],
+                    isInHotRecommendations: true,
+                    // Will use smart redirection behavior for hot recommendations
+                  );
+                },
               );
             },
           ),

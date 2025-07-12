@@ -155,8 +155,11 @@ CREATE TABLE stock_verifications (
 CREATE TABLE carts (
     cart_id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(user_id),
+    mini_app_type VARCHAR(50) NOT NULL DEFAULT 'RetailStore',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_carts_mini_app_type
+    CHECK (mini_app_type IN ('RetailStore', 'UnmannedStore', 'ExhibitionSales', 'GroupBuying'))
 );
 
 -- Cart Items table
@@ -172,11 +175,14 @@ CREATE TABLE cart_items (
 CREATE TABLE orders (
     order_id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(user_id),
-    store_id INTEGER NOT NULL REFERENCES stores(store_id),
+    store_id INTEGER REFERENCES stores(store_id), -- Nullable for non-location-based mini-apps
+    mini_app_type VARCHAR(50) NOT NULL DEFAULT 'RetailStore',
     total_amount DECIMAL(10, 2) NOT NULL,
     status VARCHAR(50) DEFAULT 'Pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_orders_mini_app_type
+    CHECK (mini_app_type IN ('RetailStore', 'UnmannedStore', 'ExhibitionSales', 'GroupBuying'))
 );
 
 -- Order Items table
@@ -234,6 +240,13 @@ CREATE TRIGGER update_partners_updated_at BEFORE UPDATE ON partners FOR EACH ROW
 CREATE TRIGGER update_stores_updated_at BEFORE UPDATE ON stores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_product_categories_updated_at BEFORE UPDATE ON product_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_carts_updated_at BEFORE UPDATE ON carts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create indexes for efficient querying
+CREATE INDEX idx_carts_user_mini_app ON carts(user_id, mini_app_type);
+CREATE INDEX idx_orders_user_mini_app ON orders(user_id, mini_app_type);
+CREATE INDEX idx_orders_user_mini_app_store ON orders(user_id, mini_app_type, store_id);
 CREATE TRIGGER update_inventory_updated_at BEFORE UPDATE ON inventory FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_stock_requests_updated_at BEFORE UPDATE ON stock_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_shipments_updated_at BEFORE UPDATE ON shipments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

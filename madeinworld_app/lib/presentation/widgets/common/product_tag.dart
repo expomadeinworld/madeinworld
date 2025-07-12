@@ -49,6 +49,7 @@ class ProductTag extends StatelessWidget {
         // Both category and subcategory use the same neutral color scheme
         return AppColors.lightBackground;
       case ProductTagType.storeLocation:
+      case ProductTagType.storeType:
         return _getStoreLocationBackgroundColor();
     }
   }
@@ -60,6 +61,7 @@ class ProductTag extends StatelessWidget {
         // Both category and subcategory use the same neutral border color
         return Colors.grey.shade300;
       case ProductTagType.storeLocation:
+      case ProductTagType.storeType:
         return _getStoreLocationColor().withValues(alpha: 0.3);
     }
   }
@@ -71,6 +73,7 @@ class ProductTag extends StatelessWidget {
         // Both category and subcategory use the same neutral text color
         return AppColors.secondaryText;
       case ProductTagType.storeLocation:
+      case ProductTagType.storeType:
         return _getStoreLocationColor();
     }
   }
@@ -101,4 +104,5 @@ enum ProductTagType {
   category,
   subcategory,
   storeLocation,
+  storeType,
 }
