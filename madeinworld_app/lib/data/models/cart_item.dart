@@ -28,6 +28,14 @@ class CartItem {
     );
   }
 
+  /// Factory constructor for backend API response format
+  factory CartItem.fromBackendJson(Map<String, dynamic> json) {
+    return CartItem(
+      product: Product.fromBackendJson(json['product']),
+      quantity: json['quantity'],
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'product': product.toJson(),

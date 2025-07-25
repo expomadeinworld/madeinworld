@@ -11,10 +11,12 @@ import (
 type StoreType string
 
 const (
-	StoreTypeUnmannedStore     StoreType = "无人商店"
+	StoreTypeRetailStore       StoreType = "零售商店"
+	StoreTypeUnmannedStore     StoreType = "无人门店"
 	StoreTypeUnmannedWarehouse StoreType = "无人仓店"
 	StoreTypeExhibitionStore   StoreType = "展销商店"
 	StoreTypeExhibitionMall    StoreType = "展销商城"
+	StoreTypeGroupBuying       StoreType = "团购团批"
 )
 
 // MiniAppType represents the type of mini-app
@@ -74,6 +76,7 @@ func (a *MiniAppTypeArray) Scan(value interface{}) error {
 // Product represents a product in the catalog
 type Product struct {
 	ID                      int         `json:"id" db:"product_id"`
+	UUID                    string      `json:"uuid" db:"product_uuid"`
 	SKU                     string      `json:"sku" db:"sku"`
 	Title                   string      `json:"title" db:"title"`
 	DescriptionShort        string      `json:"description_short" db:"description_short"`
@@ -101,6 +104,7 @@ type Product struct {
 // PublicProduct represents a product for public API (excludes cost_price)
 type PublicProduct struct {
 	ID                      int         `json:"id"`
+	UUID                    string      `json:"uuid"`
 	SKU                     string      `json:"sku"`
 	Title                   string      `json:"title"`
 	DescriptionShort        string      `json:"description_short"`
@@ -128,6 +132,7 @@ type PublicProduct struct {
 func (p *Product) ToPublicProduct() PublicProduct {
 	return PublicProduct{
 		ID:                      p.ID,
+		UUID:                    p.UUID,
 		SKU:                     p.SKU,
 		Title:                   p.Title,
 		DescriptionShort:        p.DescriptionShort,

@@ -48,16 +48,18 @@ class MiniAppNavigation {
       case MiniAppType.unmannedStore:
         // For unmanned store, navigate to cart screen with wrapper
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => const CartScreenWrapper(
-            miniAppType: 'unmanned_store',
+          MaterialPageRoute(builder: (context) => CartScreenWrapper(
+            miniAppType: 'UnmannedStore',
+            storeId: product.storeId != null ? int.tryParse(product.storeId!) : null,
           )),
         );
         break;
       case MiniAppType.exhibitionSales:
         // For exhibition sales, navigate to cart screen with wrapper
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => const CartScreenWrapper(
-            miniAppType: 'exhibition_sales',
+          MaterialPageRoute(builder: (context) => CartScreenWrapper(
+            miniAppType: 'ExhibitionSales',
+            storeId: product.storeId != null ? int.tryParse(product.storeId!) : null,
           )),
         );
         break;

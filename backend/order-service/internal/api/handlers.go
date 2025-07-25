@@ -143,8 +143,9 @@ func (h *Handler) AddToCart(c *gin.Context) {
 		return
 	}
 
-	// Check stock availability (using display stock logic)
-	if !product.HasStock() {
+	// Check stock availability only for UnmannedStore mini-app
+	// All other mini-apps have infinite stock
+	if miniAppType == models.MiniAppTypeUnmannedStore && !product.HasStock() {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "Insufficient stock",
 			Message: "This product is currently out of stock",
@@ -152,8 +153,23 @@ func (h *Handler) AddToCart(c *gin.Context) {
 		return
 	}
 
-	// Check minimum order quantity
-	if req.Quantity < product.MinimumOrderQuantity {
+	// Get existing quantity in cart to validate final total against MOQ
+	var existingQuantity int
+	checkQuery := `
+		SELECT COALESCE(quantity, 0) FROM carts
+		WHERE user_id = $1 AND mini_app_type = $2 AND product_id = $3
+	`
+	err = h.db.Pool.QueryRow(ctx, checkQuery, userID, string(miniAppType), req.ProductID).Scan(&existingQuantity)
+	if err != nil {
+		// If no existing item, current quantity is 0
+		existingQuantity = 0
+	}
+
+	// Calculate final quantity after addition
+	finalQuantity := existingQuantity + req.Quantity
+
+	// Check minimum order quantity against final total quantity
+	if finalQuantity < product.MinimumOrderQuantity {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "Minimum order quantity not met",
 			Message: "Minimum order quantity for this product is " + strconv.Itoa(product.MinimumOrderQuantity),
@@ -161,8 +177,8 @@ func (h *Handler) AddToCart(c *gin.Context) {
 		return
 	}
 
-	// Check if requested quantity exceeds available stock
-	if req.Quantity > product.DisplayStock() {
+	// Check if requested quantity exceeds available stock (only for UnmannedStore)
+	if miniAppType == models.MiniAppTypeUnmannedStore && req.Quantity > product.DisplayStock() {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "Insufficient stock",
 			Message: "Only " + strconv.Itoa(product.DisplayStock()) + " items available",
@@ -170,18 +186,20 @@ func (h *Handler) AddToCart(c *gin.Context) {
 		return
 	}
 
-	// Validate stock considering existing cart contents
-	err = h.validateStockForCartAddition(ctx, userID, miniAppType, req.ProductID, req.Quantity)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "Stock validation failed",
-			Message: err.Error(),
-		})
-		return
+	// Validate stock considering existing cart contents (only for UnmannedStore)
+	if miniAppType == models.MiniAppTypeUnmannedStore {
+		err = h.validateStockForCartAddition(ctx, userID, miniAppType, req.ProductID, req.Quantity)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "Stock validation failed",
+				Message: err.Error(),
+			})
+			return
+		}
 	}
 
 	// Add item to cart
-	err = h.addItemToCart(ctx, userID, miniAppType, req.ProductID, req.Quantity)
+	err = h.addItemToCart(ctx, userID, miniAppType, req.ProductID, req.Quantity, req.StoreID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "Failed to add item to cart",
@@ -252,8 +270,8 @@ func (h *Handler) UpdateCartItem(c *gin.Context) {
 		return
 	}
 
-	// Check stock availability
-	if req.Quantity > product.DisplayStock() {
+	// Check stock availability (only for UnmannedStore)
+	if miniAppType == models.MiniAppTypeUnmannedStore && req.Quantity > product.DisplayStock() {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "Insufficient stock",
 			Message: "Only " + strconv.Itoa(product.DisplayStock()) + " items available",
@@ -355,8 +373,8 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// Get cart items
-	cartItems, err := h.getCartItems(ctx, userID, miniAppType)
+	// Get cart items (filtered by store for location-based mini-apps)
+	cartItems, err := h.getCartItemsWithStore(ctx, userID, miniAppType, req.StoreID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "Failed to get cart items",
@@ -374,14 +392,16 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// Validate stock for all cart items before order creation
-	err = h.validateCartStockBeforeOrder(ctx, cartItems)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			Error:   "Stock validation failed",
-			Message: err.Error(),
-		})
-		return
+	// Validate stock for all cart items before order creation (only for UnmannedStore)
+	if miniAppType == models.MiniAppTypeUnmannedStore {
+		err = h.validateCartStockBeforeOrder(ctx, cartItems)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, models.ErrorResponse{
+				Error:   "Stock validation failed",
+				Message: err.Error(),
+			})
+			return
+		}
 	}
 
 	// Calculate total amount
@@ -400,8 +420,8 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// Clear cart after successful order creation
-	err = h.clearCart(ctx, userID, miniAppType)
+	// Clear cart after successful order creation (only items from submitted store for location-based mini-apps)
+	err = h.clearCartWithStore(ctx, userID, miniAppType, req.StoreID)
 	if err != nil {
 		// Log error but don't fail the order creation
 		// The order was created successfully, cart clearing is secondary

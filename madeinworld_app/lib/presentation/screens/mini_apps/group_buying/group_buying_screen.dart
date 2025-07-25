@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
@@ -13,6 +14,7 @@ import '../../../../core/enums/mini_app_type.dart';
 import '../../../widgets/common/product_card.dart';
 import '../../../widgets/common/category_chip.dart';
 import '../../../widgets/common/product_details_modal.dart';
+import '../../../providers/cart_provider.dart';
 import '../common/product_list_screen.dart';
 import '../../../../core/navigation/custom_page_transitions.dart';
 import '../../../../core/config/api_config.dart';
@@ -32,6 +34,17 @@ class _GroupBuyingScreenState extends State<GroupBuyingScreen> {
   String? _selectedCategoryName;
   String? _selectedSubcategoryName;
   String? _selectedStoreName;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize cart context for group buying mini-app
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.setMiniAppContext('GroupBuying');
+      debugPrint('🛒 GroupBuyingScreen: Cart context initialized for GroupBuying');
+    });
+  }
 
   void _showProductDetails(Product product, {
     String? categoryName,
@@ -202,7 +215,9 @@ class _ProductsTabState extends State<_ProductsTab> {
         miniAppType: MiniAppType.groupBuying,
         includeSubcategories: true,
       );
-      _productsFuture = _apiService.fetchProducts();
+      _productsFuture = _apiService.fetchProducts(
+        storeType: StoreType.groupBuying, // Filter by group buying store type
+      );
     });
   }
 

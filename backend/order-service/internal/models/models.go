@@ -112,6 +112,7 @@ func (p *Product) DisplayStock() int {
 }
 
 // HasStock returns true if the product has stock available for display
+// Note: This method is only used for UnmannedStore validation
 func (p *Product) HasStock() bool {
 	return p.DisplayStock() > 0
 }
@@ -146,4 +147,166 @@ type ErrorResponse struct {
 type SuccessResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
+}
+
+// Admin-specific models
+
+// AdminOrderListRequest represents request parameters for admin order listing
+type AdminOrderListRequest struct {
+	Page        int    `form:"page" binding:"omitempty,min=1"`
+	Limit       int    `form:"limit" binding:"omitempty,min=1,max=100"`
+	OrderID     string `form:"order_id"`
+	UserID      string `form:"user_id"`
+	MiniAppType string `form:"mini_app_type"`
+	Status      string `form:"status"`
+	StoreID     *int   `form:"store_id"`
+	DateFrom    string `form:"date_from"`  // YYYY-MM-DD format
+	DateTo      string `form:"date_to"`    // YYYY-MM-DD format
+	Search      string `form:"search"`     // Search in order ID, user email, product names
+	SortBy      string `form:"sort_by"`    // created_at, total_amount, status
+	SortOrder   string `form:"sort_order"` // asc, desc
+}
+
+// AdminOrderResponse represents an order in admin list view
+type AdminOrderResponse struct {
+	ID          string      `json:"id"`
+	UserID      string      `json:"user_id"`
+	UserEmail   string      `json:"user_email"`
+	UserName    string      `json:"user_name"`
+	MiniAppType MiniAppType `json:"mini_app_type"`
+	StoreID     *int        `json:"store_id,omitempty"`
+	StoreName   string      `json:"store_name,omitempty"`
+	TotalAmount float64     `json:"total_amount"`
+	Status      OrderStatus `json:"status"`
+	ItemCount   int         `json:"item_count"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+// AdminOrderListResponse represents the response for admin order listing
+type AdminOrderListResponse struct {
+	Orders     []AdminOrderResponse `json:"orders"`
+	Total      int                  `json:"total"`
+	Page       int                  `json:"page"`
+	Limit      int                  `json:"limit"`
+	TotalPages int                  `json:"total_pages"`
+}
+
+// AdminOrderDetailResponse represents detailed order information for admin
+type AdminOrderDetailResponse struct {
+	Order         AdminOrderResponse  `json:"order"`
+	Items         []OrderItem         `json:"items"`
+	StatusHistory []OrderStatusChange `json:"status_history,omitempty"`
+}
+
+// OrderStatusChange represents a status change record
+type OrderStatusChange struct {
+	ID        string      `json:"id"`
+	OrderID   string      `json:"order_id"`
+	OldStatus OrderStatus `json:"old_status"`
+	NewStatus OrderStatus `json:"new_status"`
+	ChangedBy string      `json:"changed_by"`
+	Reason    string      `json:"reason,omitempty"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+// UpdateOrderStatusRequest represents a request to update order status
+type UpdateOrderStatusRequest struct {
+	Status OrderStatus `json:"status" binding:"required"`
+	Reason string      `json:"reason,omitempty"`
+}
+
+// BulkUpdateOrdersRequest represents a request for bulk order updates
+type BulkUpdateOrdersRequest struct {
+	OrderIDs []string    `json:"order_ids" binding:"required,min=1"`
+	Status   OrderStatus `json:"status" binding:"required"`
+	Reason   string      `json:"reason,omitempty"`
+}
+
+// OrderStatistics represents order statistics for admin dashboard
+type OrderStatistics struct {
+	TotalOrders      int                     `json:"total_orders"`
+	TotalRevenue     float64                 `json:"total_revenue"`
+	OrdersByStatus   map[OrderStatus]int     `json:"orders_by_status"`
+	OrdersByMiniApp  map[MiniAppType]int     `json:"orders_by_mini_app"`
+	RevenueByMiniApp map[MiniAppType]float64 `json:"revenue_by_mini_app"`
+	DailyStats       []DailyOrderStats       `json:"daily_stats"`
+	TopProducts      []ProductOrderStats     `json:"top_products"`
+}
+
+// DailyOrderStats represents daily order statistics
+type DailyOrderStats struct {
+	Date       string  `json:"date"`
+	OrderCount int     `json:"order_count"`
+	Revenue    float64 `json:"revenue"`
+}
+
+// ProductOrderStats represents product order statistics
+type ProductOrderStats struct {
+	ProductID    string  `json:"product_id"`
+	ProductTitle string  `json:"product_title"`
+	OrderCount   int     `json:"order_count"`
+	TotalRevenue float64 `json:"total_revenue"`
+}
+
+// Admin Cart Models
+
+// AdminCartListRequest represents request parameters for admin cart listing
+type AdminCartListRequest struct {
+	Page        int    `form:"page" binding:"omitempty,min=1"`
+	Limit       int    `form:"limit" binding:"omitempty,min=1,max=100"`
+	UserID      string `form:"user_id"`
+	MiniAppType string `form:"mini_app_type"`
+	StoreID     *int   `form:"store_id"`
+	DateFrom    string `form:"date_from"`  // YYYY-MM-DD format
+	DateTo      string `form:"date_to"`    // YYYY-MM-DD format
+	Search      string `form:"search"`     // Search in user email, product names
+	SortBy      string `form:"sort_by"`    // created_at, updated_at, total_value
+	SortOrder   string `form:"sort_order"` // asc, desc
+}
+
+// AdminCartResponse represents a cart in admin list view
+type AdminCartResponse struct {
+	ID          string      `json:"id"`
+	UserID      string      `json:"user_id"`
+	UserEmail   string      `json:"user_email"`
+	UserName    string      `json:"user_name"`
+	MiniAppType MiniAppType `json:"mini_app_type"`
+	StoreID     *int        `json:"store_id,omitempty"`
+	StoreName   string      `json:"store_name,omitempty"`
+	ItemCount   int         `json:"item_count"`
+	TotalValue  float64     `json:"total_value"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+// AdminCartListResponse represents the response for admin cart listing
+type AdminCartListResponse struct {
+	Carts      []AdminCartResponse `json:"carts"`
+	Total      int                 `json:"total"`
+	Page       int                 `json:"page"`
+	Limit      int                 `json:"limit"`
+	TotalPages int                 `json:"total_pages"`
+}
+
+// AdminCartDetailResponse represents detailed cart information for admin
+type AdminCartDetailResponse struct {
+	Cart  AdminCartResponse `json:"cart"`
+	Items []CartItem        `json:"items"`
+}
+
+// AdminCartUpdateRequest represents a request to update cart item quantity by admin
+type AdminCartUpdateRequest struct {
+	ProductID string `json:"product_id" binding:"required"`
+	Quantity  int    `json:"quantity" binding:"required,min=0"` // 0 means remove
+}
+
+// CartStatistics represents comprehensive cart statistics for admin dashboard
+type CartStatistics struct {
+	TotalCarts         int                     `json:"total_carts"`
+	TotalCartValue     float64                 `json:"total_cart_value"`
+	AverageCartValue   float64                 `json:"average_cart_value"`
+	CartsByMiniApp     map[MiniAppType]int     `json:"carts_by_mini_app"`
+	CartValueByMiniApp map[MiniAppType]float64 `json:"cart_value_by_mini_app"`
+	AbandonedCarts     int                     `json:"abandoned_carts"` // Carts older than 7 days
 }

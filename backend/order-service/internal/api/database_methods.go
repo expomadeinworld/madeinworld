@@ -9,18 +9,44 @@ import (
 
 // getCartItems gets all cart items for a user and mini-app type
 func (h *Handler) getCartItems(ctx context.Context, userID string, miniAppType models.MiniAppType) ([]models.Cart, error) {
-	query := `
-		SELECT
-			c.id, c.user_id, c.product_id, c.quantity, c.mini_app_type, c.created_at, c.updated_at,
-			p.product_uuid, p.sku, p.title, p.main_price, p.stock_left,
-			p.minimum_order_quantity, p.is_active
-		FROM carts c
-		JOIN products p ON c.product_id = p.product_uuid
-		WHERE c.user_id = $1 AND c.mini_app_type = $2
-		ORDER BY c.created_at DESC
-	`
+	return h.getCartItemsWithStore(ctx, userID, miniAppType, nil)
+}
 
-	rows, err := h.db.Pool.Query(ctx, query, userID, string(miniAppType))
+// getCartItemsWithStore gets cart items for a user and mini-app type, optionally filtered by store
+func (h *Handler) getCartItemsWithStore(ctx context.Context, userID string, miniAppType models.MiniAppType, storeID *int) ([]models.Cart, error) {
+	var query string
+	var args []interface{}
+
+	if storeID != nil && miniAppType.RequiresStore() {
+		// For location-based mini-apps with store filter
+		// Include items with matching store_id OR NULL store_id (for backward compatibility)
+		query = `
+			SELECT
+				c.id, c.user_id, c.product_id, c.quantity, c.mini_app_type, c.created_at, c.updated_at,
+				p.product_uuid, p.sku, p.title, p.main_price, p.stock_left,
+				p.minimum_order_quantity, p.is_active
+			FROM carts c
+			JOIN products p ON c.product_id = p.product_uuid
+			WHERE c.user_id = $1 AND c.mini_app_type = $2 AND (c.store_id = $3 OR c.store_id IS NULL)
+			ORDER BY c.created_at DESC
+		`
+		args = []interface{}{userID, string(miniAppType), *storeID}
+	} else {
+		// For non-location mini-apps or when no store filter needed
+		query = `
+			SELECT
+				c.id, c.user_id, c.product_id, c.quantity, c.mini_app_type, c.created_at, c.updated_at,
+				p.product_uuid, p.sku, p.title, p.main_price, p.stock_left,
+				p.minimum_order_quantity, p.is_active
+			FROM carts c
+			JOIN products p ON c.product_id = p.product_uuid
+			WHERE c.user_id = $1 AND c.mini_app_type = $2
+			ORDER BY c.created_at DESC
+		`
+		args = []interface{}{userID, string(miniAppType)}
+	}
+
+	rows, err := h.db.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query cart items: %w", err)
 	}
@@ -62,6 +88,37 @@ func (h *Handler) getCartItems(ctx context.Context, userID string, miniAppType m
 	return items, nil
 }
 
+// updateProductStock reduces product stock levels after order creation
+func (h *Handler) updateProductStock(ctx context.Context, orderItems []models.Cart, miniAppType models.MiniAppType) error {
+	// Only update stock for UnmannedStore mini-app
+	if miniAppType != models.MiniAppTypeUnmannedStore {
+		return nil
+	}
+
+	// Update stock for each product in the order
+	for _, item := range orderItems {
+		updateQuery := `
+			UPDATE products
+			SET stock_left = stock_left - $1, updated_at = CURRENT_TIMESTAMP
+			WHERE product_uuid = $2 AND stock_left >= $1
+		`
+
+		result, err := h.db.Pool.Exec(ctx, updateQuery, item.Quantity, item.ProductID)
+		if err != nil {
+			return fmt.Errorf("failed to update stock for product %s: %w", item.ProductID, err)
+		}
+
+		// Check if any rows were affected (stock was sufficient)
+		if result.RowsAffected() == 0 {
+			// This shouldn't happen as we validate stock before order creation
+			// But it's a safety check in case of concurrent orders
+			return fmt.Errorf("insufficient stock for product %s (concurrent order may have depleted stock)", item.ProductID)
+		}
+	}
+
+	return nil
+}
+
 // getProduct retrieves a product by ID (using UUID)
 func (h *Handler) getProduct(ctx context.Context, productID string) (*models.Product, error) {
 	var product models.Product
@@ -89,34 +146,65 @@ func (h *Handler) getProduct(ctx context.Context, productID string) (*models.Pro
 }
 
 // addItemToCart adds an item to the cart or updates quantity if it already exists
-func (h *Handler) addItemToCart(ctx context.Context, userID string, miniAppType models.MiniAppType, productID string, quantity int) error {
-	// Check if item already exists in cart
-	var existingQuantity int
-	checkQuery := `
-		SELECT quantity FROM carts 
-		WHERE user_id = $1 AND mini_app_type = $2 AND product_id = $3
-	`
+func (h *Handler) addItemToCart(ctx context.Context, userID string, miniAppType models.MiniAppType, productID string, quantity int, storeID *int) error {
+	var checkQuery, updateQuery, insertQuery string
+	var checkArgs, updateArgs, insertArgs []interface{}
 
-	err := h.db.Pool.QueryRow(ctx, checkQuery, userID, string(miniAppType), productID).Scan(&existingQuantity)
+	if storeID != nil && miniAppType.RequiresStore() {
+		// For location-based mini-apps, include store_id in all operations
+		checkQuery = `
+			SELECT quantity FROM carts
+			WHERE user_id = $1 AND mini_app_type = $2 AND product_id = $3 AND store_id = $4
+		`
+		checkArgs = []interface{}{userID, string(miniAppType), productID, *storeID}
 
-	if err == nil {
-		// Item exists, update quantity
-		updateQuery := `
-			UPDATE carts 
+		updateQuery = `
+			UPDATE carts
+			SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
+			WHERE user_id = $2 AND mini_app_type = $3 AND product_id = $4 AND store_id = $5
+		`
+		updateArgs = []interface{}{quantity, userID, string(miniAppType), productID, *storeID}
+
+		insertQuery = `
+			INSERT INTO carts (user_id, mini_app_type, product_id, quantity, store_id)
+			VALUES ($1, $2, $3, $4, $5)
+		`
+		insertArgs = []interface{}{userID, string(miniAppType), productID, quantity, *storeID}
+	} else {
+		// For non-location mini-apps, don't include store_id
+		checkQuery = `
+			SELECT quantity FROM carts
+			WHERE user_id = $1 AND mini_app_type = $2 AND product_id = $3
+		`
+		checkArgs = []interface{}{userID, string(miniAppType), productID}
+
+		updateQuery = `
+			UPDATE carts
 			SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
 			WHERE user_id = $2 AND mini_app_type = $3 AND product_id = $4
 		`
-		_, err = h.db.Pool.Exec(ctx, updateQuery, quantity, userID, string(miniAppType), productID)
+		updateArgs = []interface{}{quantity, userID, string(miniAppType), productID}
+
+		insertQuery = `
+			INSERT INTO carts (user_id, mini_app_type, product_id, quantity)
+			VALUES ($1, $2, $3, $4)
+		`
+		insertArgs = []interface{}{userID, string(miniAppType), productID, quantity}
+	}
+
+	// Check if item already exists in cart
+	var existingQuantity int
+	err := h.db.Pool.QueryRow(ctx, checkQuery, checkArgs...).Scan(&existingQuantity)
+
+	if err == nil {
+		// Item exists, update quantity
+		_, err = h.db.Pool.Exec(ctx, updateQuery, updateArgs...)
 		if err != nil {
 			return fmt.Errorf("failed to update cart item quantity: %w", err)
 		}
 	} else {
 		// Item doesn't exist, insert new
-		insertQuery := `
-			INSERT INTO carts (user_id, mini_app_type, product_id, quantity)
-			VALUES ($1, $2, $3, $4)
-		`
-		_, err = h.db.Pool.Exec(ctx, insertQuery, userID, string(miniAppType), productID, quantity)
+		_, err = h.db.Pool.Exec(ctx, insertQuery, insertArgs...)
 		if err != nil {
 			return fmt.Errorf("failed to add item to cart: %w", err)
 		}
@@ -204,8 +292,26 @@ func (h *Handler) validateStockForCartAddition(ctx context.Context, userID strin
 
 // clearCart removes all items from a user's cart for a specific mini-app
 func (h *Handler) clearCart(ctx context.Context, userID string, miniAppType models.MiniAppType) error {
-	deleteQuery := `DELETE FROM carts WHERE user_id = $1 AND mini_app_type = $2`
-	_, err := h.db.Pool.Exec(ctx, deleteQuery, userID, string(miniAppType))
+	return h.clearCartWithStore(ctx, userID, miniAppType, nil)
+}
+
+// clearCartWithStore removes cart items for a user and mini-app type, optionally filtered by store
+func (h *Handler) clearCartWithStore(ctx context.Context, userID string, miniAppType models.MiniAppType, storeID *int) error {
+	var deleteQuery string
+	var args []interface{}
+
+	if storeID != nil && miniAppType.RequiresStore() {
+		// For location-based mini-apps with store filter
+		// Clear items with matching store_id OR NULL store_id (for backward compatibility)
+		deleteQuery = `DELETE FROM carts WHERE user_id = $1 AND mini_app_type = $2 AND (store_id = $3 OR store_id IS NULL)`
+		args = []interface{}{userID, string(miniAppType), *storeID}
+	} else {
+		// For non-location mini-apps or when no store filter needed
+		deleteQuery = `DELETE FROM carts WHERE user_id = $1 AND mini_app_type = $2`
+		args = []interface{}{userID, string(miniAppType)}
+	}
+
+	_, err := h.db.Pool.Exec(ctx, deleteQuery, args...)
 	if err != nil {
 		return fmt.Errorf("failed to clear cart: %w", err)
 	}
@@ -301,6 +407,13 @@ func (h *Handler) createOrder(ctx context.Context, userID string, miniAppType mo
 	// Commit transaction
 	if err = tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Update product stock levels after successful order creation (only for UnmannedStore)
+	if err = h.updateProductStock(ctx, cartItems, miniAppType); err != nil {
+		// Log error but don't fail the order creation since the order was already committed
+		// In a production system, you might want to implement compensation logic here
+		fmt.Printf("Warning: Failed to update product stock after order creation: %v\n", err)
 	}
 
 	order.Items = orderItems

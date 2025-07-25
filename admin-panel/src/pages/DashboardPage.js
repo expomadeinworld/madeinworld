@@ -14,7 +14,7 @@ import {
   TrendingUp as RevenueIcon,
   Assessment as AnalyticsIcon,
 } from '@mui/icons-material';
-import { productService, storeService } from '../services/api';
+import { productService, storeService, orderService } from '../services/api';
 
 const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
@@ -32,21 +32,40 @@ const DashboardPage = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch products and stores data
-        const [productsData, storesData] = await Promise.all([
+        // Fetch products, stores, and order statistics
+        const [productsData, storesData, orderStats] = await Promise.all([
           productService.getProducts(),
           storeService.getStores(),
+          orderService.getStatistics(),
         ]);
 
         setStats({
           totalProducts: (productsData && productsData.length) || 0,
           totalStores: (storesData && storesData.length) || 0,
-          revenue: 12450.75, // Mock data for now
-          orders: 156, // Mock data for now
+          revenue: orderStats.total_revenue || 0,
+          orders: orderStats.total_orders || 0,
         });
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError(err.message || 'Failed to load dashboard data');
+
+        // Fallback to partial data if order service fails
+        try {
+          const [productsData, storesData] = await Promise.all([
+            productService.getProducts(),
+            storeService.getStores(),
+          ]);
+
+          setStats({
+            totalProducts: (productsData && productsData.length) || 0,
+            totalStores: (storesData && storesData.length) || 0,
+            revenue: 0, // Will show 0 if order service is unavailable
+            orders: 0, // Will show 0 if order service is unavailable
+          });
+        } catch (fallbackErr) {
+          console.error('Error fetching fallback data:', fallbackErr);
+          setError('Failed to load dashboard data');
+        }
       } finally {
         setLoading(false);
       }

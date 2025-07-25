@@ -29,7 +29,11 @@ class MadeInWorldApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, CartProvider>(
+          create: (context) => CartProvider(context.read<AuthProvider>()),
+          update: (context, authProvider, cartProvider) =>
+              cartProvider ?? CartProvider(authProvider),
+        ),
         ChangeNotifierProvider(create: (_) => LocationProvider()),
       ],
       child: MaterialApp(

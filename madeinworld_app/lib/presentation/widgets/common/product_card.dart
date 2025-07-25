@@ -8,6 +8,7 @@ import '../../../core/enums/store_type.dart';
 import '../../../core/utils/mini_app_navigation.dart';
 import '../../../data/services/product_data_resolver.dart';
 import 'add_to_cart_button.dart';
+import 'product_tag.dart';
 
 class ProductCard extends StatelessWidget {
   final Product product;
@@ -98,6 +99,10 @@ class ProductCard extends StatelessWidget {
                   ),
                 ),
               ],
+
+              // Product Tags (positioned above pricing)
+              SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 6)),
+              _buildProductTags(context),
 
               SizedBox(height: ResponsiveUtils.getResponsiveSpacing(context, 8)),
               
@@ -200,5 +205,68 @@ class ProductCard extends StatelessWidget {
     debugPrint('🔍 ProductCard: Product ${product.id} (${product.title}) requires parent widget to handle product details display');
     // Note: This method should not be called when onTap is null
     // All ProductCard instances should now provide an onTap callback
+  }
+
+  /// Builds product tags using the same styling as ProductDetailsModal
+  Widget _buildProductTags(BuildContext context) {
+    final tags = <Widget>[];
+
+    // Category tag
+    if (categoryName != null && categoryName!.isNotEmpty) {
+      tags.add(ProductTag(
+        text: categoryName!,
+        type: ProductTagType.category,
+        size: ProductTagSize.small, // Use small size for product cards
+      ));
+    }
+
+    // Subcategory tag
+    if (subcategoryName != null && subcategoryName!.isNotEmpty) {
+      tags.add(ProductTag(
+        text: subcategoryName!,
+        type: ProductTagType.subcategory,
+        size: ProductTagSize.small, // Use small size for product cards
+      ));
+    }
+
+    // Store location and store type tags (only for location-dependent mini-apps)
+    if (_shouldShowStoreTag() && storeName != null && storeName!.isNotEmpty) {
+      // Extract store name from formatted string (e.g., "无人门店: MANOR Lugano" -> "MANOR Lugano")
+      String storeLocationName = storeName!;
+      if (storeName!.contains(': ')) {
+        storeLocationName = storeName!.split(': ').last;
+      }
+
+      tags.add(ProductTag(
+        text: storeLocationName,
+        type: ProductTagType.storeLocation,
+        storeType: product.storeType,
+        size: ProductTagSize.small, // Use small size for product cards
+      ));
+
+      // Add store type tag as a separate tag
+      tags.add(ProductTag(
+        text: product.storeType.displayName,
+        type: ProductTagType.storeType,
+        storeType: product.storeType,
+        size: ProductTagSize.small, // Use small size for product cards
+      ));
+    }
+
+    if (tags.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: ResponsiveUtils.getResponsiveSpacing(context, 8),
+      runSpacing: ResponsiveUtils.getResponsiveSpacing(context, 8),
+      children: tags,
+    );
+  }
+
+  /// Determines if store tags should be shown based on store type
+  bool _shouldShowStoreTag() {
+    return product.storeType == StoreType.unmannedStore ||
+           product.storeType == StoreType.unmannedWarehouse ||
+           product.storeType == StoreType.exhibitionStore ||
+           product.storeType == StoreType.exhibitionMall;
   }
 }

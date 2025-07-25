@@ -10,11 +10,13 @@ import 'cart_screen.dart';
 class CartScreenWrapper extends StatefulWidget {
   final String miniAppType; // 'unmanned_store' or 'exhibition_sales'
   final String? instanceId;
+  final int? storeId; // Store ID for location-based mini-apps
 
   const CartScreenWrapper({
     super.key,
     required this.miniAppType,
     this.instanceId,
+    this.storeId,
   });
 
   @override
@@ -22,6 +24,50 @@ class CartScreenWrapper extends StatefulWidget {
 }
 
 class _CartScreenWrapperState extends State<CartScreenWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize cart context for the specific mini-app, preserving existing store_id
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+
+      // Normalize mini-app type to PascalCase format expected by CartScreen
+      final normalizedMiniAppType = _normalizeMiniAppType(widget.miniAppType);
+      debugPrint('🛒 CartScreenWrapper: Normalized mini-app type from ${widget.miniAppType} to $normalizedMiniAppType');
+
+      // Check if cart context is already set for this mini-app and preserve store_id
+      if (cartProvider.currentMiniAppType == normalizedMiniAppType && cartProvider.currentStoreId != null) {
+        debugPrint('🛒 CartScreenWrapper: Cart context already set for $normalizedMiniAppType, preserving store ID: ${cartProvider.currentStoreId}');
+      } else {
+        // Set context with store_id if provided, otherwise use existing store_id
+        final storeId = widget.storeId ?? cartProvider.currentStoreId;
+        cartProvider.setMiniAppContext(normalizedMiniAppType, storeId: storeId);
+        debugPrint('🛒 CartScreenWrapper: Cart context initialized for $normalizedMiniAppType with store ID: $storeId');
+      }
+    });
+  }
+
+  /// Normalize mini-app type to PascalCase format expected by CartScreen
+  String _normalizeMiniAppType(String miniAppType) {
+    switch (miniAppType.toLowerCase()) {
+      case 'unmanned_store':
+      case 'unmannedstore':
+        return 'UnmannedStore';
+      case 'exhibition_sales':
+      case 'exhibitionsales':
+        return 'ExhibitionSales';
+      case 'retail_store':
+      case 'retailstore':
+        return 'RetailStore';
+      case 'group_buying':
+      case 'groupbuying':
+        return 'GroupBuying';
+      default:
+        // If already in correct format, return as-is
+        return miniAppType;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

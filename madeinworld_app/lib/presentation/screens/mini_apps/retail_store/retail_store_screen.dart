@@ -35,6 +35,17 @@ class _RetailStoreScreenState extends State<RetailStoreScreen> {
   String? _selectedSubcategoryName;
   String? _selectedStoreName;
 
+  @override
+  void initState() {
+    super.initState();
+    // Initialize cart context for retail store mini-app
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.setMiniAppContext('RetailStore');
+      debugPrint('🛒 RetailStoreScreen: Cart context initialized for RetailStore');
+    });
+  }
+
   List<Widget> get _screens => [
     _ProductsTab(
       key: const ValueKey('retail_products'),
@@ -251,7 +262,9 @@ class _ProductsTabState extends State<_ProductsTab> {
       miniAppType: MiniAppType.retailStore,
       includeSubcategories: true,
     );
-    _productsFuture = _apiService.fetchProducts();
+    _productsFuture = _apiService.fetchProducts(
+      storeType: StoreType.retailStore, // Filter by retail store type
+    );
   }
 
   @override

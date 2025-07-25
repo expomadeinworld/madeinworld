@@ -87,6 +87,29 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 		apiGroup.GET("/order/:order_id", handler.GetOrder)
 	}
 
+	// Admin API routes with authentication and admin middleware
+	adminGroup := router.Group("/api/admin")
+	adminGroup.Use(api.AuthMiddleware())
+	adminGroup.Use(api.AdminMiddleware())
+	{
+		// Order management endpoints
+		adminGroup.GET("/orders", handler.GetAdminOrders)
+		adminGroup.GET("/orders/:order_id", handler.GetAdminOrder)
+		adminGroup.PUT("/orders/:order_id/status", handler.UpdateOrderStatus)
+		adminGroup.DELETE("/orders/:order_id", handler.DeleteOrder)
+		adminGroup.POST("/orders/bulk-update", handler.BulkUpdateOrders)
+
+		// Cart management endpoints
+		adminGroup.GET("/carts", handler.GetAdminCarts)
+		adminGroup.GET("/carts/:cart_id", handler.GetAdminCart)
+		adminGroup.PUT("/carts/:cart_id/items", handler.UpdateAdminCartItem)
+		adminGroup.DELETE("/carts/:cart_id", handler.DeleteAdminCart)
+
+		// Statistics endpoints
+		adminGroup.GET("/orders/statistics", handler.GetOrderStatistics)
+		adminGroup.GET("/carts/statistics", handler.GetCartStatistics)
+	}
+
 	// Root endpoint for basic info
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -104,7 +127,7 @@ func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-Admin-Request")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

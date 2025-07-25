@@ -9,24 +9,29 @@ class ProductTag extends StatelessWidget {
   final String text;
   final ProductTagType type;
   final StoreType? storeType; // Used for store location tags to determine color
+  final ProductTagSize size; // Controls the size of the tag
 
   const ProductTag({
     super.key,
     required this.text,
     required this.type,
     this.storeType,
+    this.size = ProductTagSize.normal, // Default to normal size
   });
 
   @override
   Widget build(BuildContext context) {
+    final isSmall = size == ProductTagSize.small;
+    final scaleFactor = isSmall ? 0.7 : 1.0; // 30% smaller for small tags
+
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveUtils.getResponsiveSpacing(context, 8),
-        vertical: ResponsiveUtils.getResponsiveSpacing(context, 4),
+        horizontal: ResponsiveUtils.getResponsiveSpacing(context, 8) * scaleFactor,
+        vertical: ResponsiveUtils.getResponsiveSpacing(context, 4) * scaleFactor,
       ),
       decoration: BoxDecoration(
         color: _getBackgroundColor(),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(6 * scaleFactor),
         border: Border.all(
           color: _getBorderColor(),
           width: 1,
@@ -37,6 +42,7 @@ class ProductTag extends StatelessWidget {
         style: AppTextStyles.responsiveBodySmall(context).copyWith(
           color: _getTextColor(),
           fontWeight: FontWeight.w500,
+          fontSize: (AppTextStyles.responsiveBodySmall(context).fontSize ?? 12) * scaleFactor,
         ),
       ),
     );
@@ -85,8 +91,10 @@ class ProductTag extends StatelessWidget {
 
   Color _getStoreLocationColor() {
     if (storeType == null) return AppColors.secondaryText;
-    
+
     switch (storeType!) {
+      case StoreType.retailStore:
+        return const Color(0xFF520EE6); // Purple for 零售商店
       case StoreType.unmannedStore:
         return const Color(0xFF2196F3); // Blue for 无人门店
       case StoreType.unmannedWarehouse:
@@ -95,6 +103,8 @@ class ProductTag extends StatelessWidget {
         return const Color(0xFFFFD556); // Yellow for 展销商店
       case StoreType.exhibitionMall:
         return const Color(0xFFF38900); // Orange for 展销商城
+      case StoreType.groupBuying:
+        return const Color(0xFF076200); // Dark green for 团购团批
     }
   }
 }
@@ -105,4 +115,10 @@ enum ProductTagType {
   subcategory,
   storeLocation,
   storeType,
+}
+
+/// Enum to define different sizes of product tags
+enum ProductTagSize {
+  normal,  // Default size (for ProductDetailsModal)
+  small,   // 30% smaller (for ProductCard and Cart)
 }

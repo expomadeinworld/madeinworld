@@ -5,14 +5,18 @@ import '../enums/store_type.dart';
 
 class MapMarkerUtils {
   // Hex color codes as specified
+  static const Color retailStoreColor = Color(0xFF520EE6);
   static const Color unmannedStoreColor = Color(0xFF2196F3);
   static const Color unmannedWarehouseColor = Color(0xFF4CAF50);
   static const Color exhibitionStoreColor = Color(0xFFFFD556);
   static const Color exhibitionMallColor = Color(0xFFF38900);
+  static const Color groupBuyingColor = Color(0xFF076200);
 
   /// Chooses the correct icon for a given store type
   static IconData _getIconForStoreType(StoreType storeType) {
     switch (storeType) {
+      case StoreType.retailStore:
+        return Icons.shopping_cart; // Retail Store Icon
       case StoreType.unmannedStore:
         return Icons.store; // Shop/Store Icon
       case StoreType.unmannedWarehouse:
@@ -21,12 +25,16 @@ class MapMarkerUtils {
         return Icons.shopping_bag; // Store/Shopping Bag Icon
       case StoreType.exhibitionMall:
         return Icons.domain; // Mall/Big Building Icon
+      case StoreType.groupBuying:
+        return Icons.group; // Group Buying Icon
     }
   }
 
   /// Gets the color for a specific store type
   static Color getStoreTypeColor(StoreType storeType) {
     switch (storeType) {
+      case StoreType.retailStore:
+        return retailStoreColor;
       case StoreType.unmannedStore:
         return unmannedStoreColor;
       case StoreType.unmannedWarehouse:
@@ -35,6 +43,8 @@ class MapMarkerUtils {
         return exhibitionStoreColor;
       case StoreType.exhibitionMall:
         return exhibitionMallColor;
+      case StoreType.groupBuying:
+        return groupBuyingColor;
     }
   }
 

@@ -21,6 +21,8 @@ import {
   Category as CategoriesIcon,
   Store as StoreIcon,
   People as UsersIcon,
+  ShoppingCart as OrdersIcon,
+  ShoppingBasket as CartsIcon,
   Assessment as AnalyticsIcon,
 } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -52,6 +54,16 @@ const navigationItems = [
     text: 'Users',
     icon: <UsersIcon />,
     path: '/users',
+  },
+  {
+    text: 'Orders',
+    icon: <OrdersIcon />,
+    path: '/orders',
+  },
+  {
+    text: 'Carts',
+    icon: <CartsIcon />,
+    path: '/carts',
   },
   {
     text: 'Analytics',

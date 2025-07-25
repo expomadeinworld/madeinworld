@@ -23,6 +23,8 @@ import (
 // convertStoreTypeToDBValue converts English API enum values to Chinese database values
 func convertStoreTypeToDBValue(apiValue string) string {
 	switch apiValue {
+	case "RetailStore":
+		return "零售商店"
 	case "UnmannedStore":
 		return "无人门店"
 	case "UnmannedWarehouse":
@@ -31,6 +33,8 @@ func convertStoreTypeToDBValue(apiValue string) string {
 		return "展销商店"
 	case "ExhibitionMall":
 		return "展销商城"
+	case "GroupBuying":
+		return "团购团批"
 	default:
 		// Fallback: try to use the value as-is (for backward compatibility)
 		return apiValue
@@ -301,7 +305,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		// Admin requests show ALL products (active and inactive) for complete management
 		query = `
             SELECT
-                p.product_id, p.sku, p.title, p.description_short, p.description_long,
+                p.product_id, p.product_uuid, p.sku, p.title, p.description_short, p.description_long,
                 p.manufacturer_id,
                 CASE
                     WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
@@ -318,7 +322,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		// Public requests only show active products
 		query = `
             SELECT
-                p.product_id, p.sku, p.title, p.description_short, p.description_long,
+                p.product_id, p.product_uuid, p.sku, p.title, p.description_short, p.description_long,
                 p.manufacturer_id,
                 CASE
                     WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
@@ -384,6 +388,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		if isAdminRequest {
 			err = rows.Scan(
 				&product.ID,
+				&product.UUID,
 				&product.SKU,
 				&product.Title,
 				&product.DescriptionShort,
@@ -406,6 +411,7 @@ func (h *Handler) GetProducts(c *gin.Context) {
 		} else {
 			err = rows.Scan(
 				&product.ID,
+				&product.UUID,
 				&product.SKU,
 				&product.Title,
 				&product.DescriptionShort,
@@ -515,61 +521,101 @@ func (h *Handler) GetProducts(c *gin.Context) {
 	}
 }
 
-// GetProduct handles GET /products/:id
+// GetProduct handles GET /products/:id (accepts both integer ID and UUID)
 func (h *Handler) GetProduct(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	idStr := c.Param("id")
-	productID, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
-		return
-	}
 
 	// Check if this is an admin request
 	isAdminRequest := c.GetHeader("X-Admin-Request") == "true"
 
+	// Try to parse as integer first, if that fails, treat as UUID
 	var query string
-	if isAdminRequest {
-		query = `
-            SELECT
-                p.product_id, p.sku, p.title, p.description_short, p.description_long,
-                p.manufacturer_id,
-                CASE
-                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
-                    THEN s.type
-                    ELSE p.store_type
-                END as store_type,
-                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
-                p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
-            FROM products p
-            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
-            WHERE p.product_id = $1 AND p.is_active = true
-        `
+	var queryParam interface{}
+
+	if productID, err := strconv.Atoi(idStr); err == nil {
+		// It's an integer ID
+		queryParam = productID
+		if isAdminRequest {
+			query = `
+	            SELECT
+	                p.product_id, p.product_uuid, p.sku, p.title, p.description_short, p.description_long,
+	                p.manufacturer_id,
+	                CASE
+	                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+	                    THEN s.type
+	                    ELSE p.store_type
+	                END as store_type,
+	                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+	                p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+	            FROM products p
+	            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
+	            WHERE p.product_id = $1 AND p.is_active = true
+	        `
+		} else {
+			query = `
+	            SELECT
+	                p.product_id, p.product_uuid, p.sku, p.title, p.description_short, p.description_long,
+	                p.manufacturer_id,
+	                CASE
+	                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+	                    THEN s.type
+	                    ELSE p.store_type
+	                END as store_type,
+	                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+	                p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+	            FROM products p
+	            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
+	            WHERE p.product_id = $1 AND p.is_active = true
+	        `
+		}
 	} else {
-		query = `
-            SELECT
-                p.product_id, p.sku, p.title, p.description_short, p.description_long,
-                p.manufacturer_id,
-                CASE
-                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
-                    THEN s.type
-                    ELSE p.store_type
-                END as store_type,
-                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
-                p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
-            FROM products p
-            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
-            WHERE p.product_id = $1 AND p.is_active = true
-        `
+		// It's a UUID
+		queryParam = idStr
+		if isAdminRequest {
+			query = `
+	            SELECT
+	                p.product_id, p.product_uuid, p.sku, p.title, p.description_short, p.description_long,
+	                p.manufacturer_id,
+	                CASE
+	                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+	                    THEN s.type
+	                    ELSE p.store_type
+	                END as store_type,
+	                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+	                p.cost_price, p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+	            FROM products p
+	            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
+	            WHERE p.product_uuid = $1 AND p.is_active = true
+	        `
+		} else {
+			query = `
+	            SELECT
+	                p.product_id, p.product_uuid, p.sku, p.title, p.description_short, p.description_long,
+	                p.manufacturer_id,
+	                CASE
+	                    WHEN p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales') AND s.type IS NOT NULL
+	                    THEN s.type
+	                    ELSE p.store_type
+	                END as store_type,
+	                p.mini_app_type, p.store_id, p.main_price, p.strikethrough_price,
+	                p.stock_left, p.minimum_order_quantity, p.is_active, p.is_featured, p.is_mini_app_recommendation, p.created_at, p.updated_at
+	            FROM products p
+	            LEFT JOIN stores s ON p.store_id = s.store_id AND p.mini_app_type IN ('UnmannedStore', 'ExhibitionSales')
+	            WHERE p.product_uuid = $1 AND p.is_active = true
+	        `
+		}
 	}
 
 	var product models.Product
+	var err error
 
 	if isAdminRequest {
-		err = h.db.Pool.QueryRow(ctx, query, productID).Scan(
+		err = h.db.Pool.QueryRow(ctx, query, queryParam).Scan(
 			&product.ID,
+			&product.UUID,
 			&product.SKU,
 			&product.Title,
 			&product.DescriptionShort,
@@ -590,8 +636,9 @@ func (h *Handler) GetProduct(c *gin.Context) {
 			&product.UpdatedAt,
 		)
 	} else {
-		err = h.db.Pool.QueryRow(ctx, query, productID).Scan(
+		err = h.db.Pool.QueryRow(ctx, query, queryParam).Scan(
 			&product.ID,
+			&product.UUID,
 			&product.SKU,
 			&product.Title,
 			&product.DescriptionShort,
@@ -613,7 +660,7 @@ func (h *Handler) GetProduct(c *gin.Context) {
 	}
 
 	if err != nil {
-		log.Printf("Error querying product %d: %v", productID, err)
+		log.Printf("Error querying product %v: %v", queryParam, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 		return
 	}

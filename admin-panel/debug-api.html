@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug API Calls</title>
+</head>
+<body>
+    <h1>Debug API Calls</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        async function testAPI() {
+            const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800';
+            
+            // Test 1: Products API
+            try {
+                results.innerHTML += '<h2>Testing Products API...</h2>';
+                const response = await fetch('http://localhost:8080/api/v1/products', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Admin-Request': 'true'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += `<p>✅ Products API: Success (${data.length} products)</p>`;
+                } else {
+                    results.innerHTML += `<p>❌ Products API: Failed (${response.status})</p>`;
+                }
+            } catch (error) {
+                results.innerHTML += `<p>❌ Products API: Error - ${error.message}</p>`;
+            }
+            
+            // Test 2: Stores API
+            try {
+                results.innerHTML += '<h2>Testing Stores API...</h2>';
+                const response = await fetch('http://localhost:8080/api/v1/stores', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Admin-Request': 'true'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += `<p>✅ Stores API: Success (${data.length} stores)</p>`;
+                } else {
+                    results.innerHTML += `<p>❌ Stores API: Failed (${response.status})</p>`;
+                }
+            } catch (error) {
+                results.innerHTML += `<p>❌ Stores API: Error - ${error.message}</p>`;
+            }
+            
+            // Test 3: Orders Statistics API
+            try {
+                results.innerHTML += '<h2>Testing Orders Statistics API...</h2>';
+                const response = await fetch('http://localhost:8082/api/admin/orders/statistics', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Admin-Request': 'true'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    results.innerHTML += `<p>✅ Orders Statistics API: Success (${data.total_orders} orders)</p>`;
+                } else {
+                    results.innerHTML += `<p>❌ Orders Statistics API: Failed (${response.status})</p>`;
+                }
+            } catch (error) {
+                results.innerHTML += `<p>❌ Orders Statistics API: Error - ${error.message}</p>`;
+            }
+        }
+        
+        testAPI();
+    </script>
+</body>
+</html>

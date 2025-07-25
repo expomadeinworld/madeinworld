@@ -86,6 +86,13 @@ class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
       _MessagesTab(key: ValueKey('exhibition_messages_$instanceId')),
       _ProfileTab(key: ValueKey('exhibition_profile_$instanceId')),
     ];
+
+    // Initialize cart context for exhibition sales mini-app
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.setMiniAppContext('ExhibitionSales');
+      debugPrint('🛒 ExhibitionSalesScreen: Cart context initialized for ExhibitionSales');
+    });
   }
 
   void _onStoreSelected(Store? store) {
@@ -94,6 +101,12 @@ class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
     });
     // Update the selected store in the ProductsTab and refresh data
     _productsTabKey.currentState?.updateSelectedStore(store);
+
+    // Update cart context with store_id
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final storeId = store?.id != null ? int.tryParse(store!.id) : null;
+    cartProvider.setMiniAppContext('ExhibitionSales', storeId: storeId);
+    debugPrint('🛒 ExhibitionSalesScreen: Updated cart context with store ID: $storeId');
   }
 
   // Store locator header for exhibition sales
@@ -171,8 +184,9 @@ class _ExhibitionSalesScreenState extends State<ExhibitionSalesScreen> {
                         Navigator.of(context).push(
                           PageRouteBuilder(
                             pageBuilder: (context, animation, secondaryAnimation) => CartScreenWrapper(
-                              miniAppType: 'exhibition_sales',
+                              miniAppType: 'ExhibitionSales',
                               instanceId: widget.instanceId,
+                              storeId: _selectedStore?.id != null ? int.tryParse(_selectedStore!.id) : null,
                             ),
                             transitionDuration: Duration.zero, // Instant transition
                             reverseTransitionDuration: Duration.zero, // Instant reverse transition

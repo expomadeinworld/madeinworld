@@ -87,6 +87,13 @@ class _UnmannedStoreScreenState extends State<UnmannedStoreScreen> {
       _MessagesTab(key: ValueKey('unmanned_messages_$instanceId')),
       _ProfileTab(key: ValueKey('unmanned_profile_$instanceId')),
     ];
+
+    // Initialize cart context for unmanned store mini-app
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      cartProvider.setMiniAppContext('UnmannedStore');
+      debugPrint('🛒 UnmannedStoreScreen: Cart context initialized for UnmannedStore');
+    });
   }
 
   void _onStoreSelected(Store? store) {
@@ -95,6 +102,12 @@ class _UnmannedStoreScreenState extends State<UnmannedStoreScreen> {
     });
     // Update the selected store in the ProductsTab and refresh data
     _productsTabKey.currentState?.updateSelectedStore(store);
+
+    // Update cart context with store_id
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final storeId = store?.id != null ? int.tryParse(store!.id) : null;
+    cartProvider.setMiniAppContext('UnmannedStore', storeId: storeId);
+    debugPrint('🛒 UnmannedStoreScreen: Updated cart context with store ID: $storeId');
   }
 
   // Store locator header for unmanned store
@@ -175,8 +188,9 @@ class _UnmannedStoreScreenState extends State<UnmannedStoreScreen> {
                         Navigator.of(context).push(
                           PageRouteBuilder(
                             pageBuilder: (context, animation, secondaryAnimation) => CartScreenWrapper(
-                              miniAppType: 'unmanned_store',
+                              miniAppType: 'UnmannedStore',
                               instanceId: widget.instanceId,
+                              storeId: _selectedStore?.id != null ? int.tryParse(_selectedStore!.id) : null,
                             ),
                             transitionDuration: Duration.zero, // Instant transition
                             reverseTransitionDuration: Duration.zero, // Instant reverse transition

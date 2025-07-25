@@ -288,6 +288,8 @@ class _StoreLocatorHeaderState extends State<StoreLocatorHeader> with WidgetsBin
 
   Color _getStoreTypeColor(StoreType storeType) {
     switch (storeType) {
+      case StoreType.retailStore:
+        return const Color(0xFF520EE6); // Purple
       case StoreType.unmannedStore:
         return const Color(0xFF2196F3); // Light blue
       case StoreType.unmannedWarehouse:
@@ -296,6 +298,8 @@ class _StoreLocatorHeaderState extends State<StoreLocatorHeader> with WidgetsBin
         return const Color(0xFFFFD556); // Light yellow
       case StoreType.exhibitionMall:
         return const Color(0xFFF38900); // Vivid orange
+      case StoreType.groupBuying:
+        return const Color(0xFF076200); // Dark green
     }
   }
 

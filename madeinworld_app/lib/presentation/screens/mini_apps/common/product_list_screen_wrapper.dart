@@ -217,6 +217,7 @@ class _ProductListScreenWrapperState extends State<ProductListScreenWrapper> {
         pageBuilder: (context, animation, secondaryAnimation) => CartScreenWrapper(
           miniAppType: widget.miniAppType,
           instanceId: widget.instanceId,
+          storeId: widget.selectedStore?.id != null ? int.tryParse(widget.selectedStore!.id) : null,
         ),
         transitionDuration: Duration.zero, // Instant transition
         reverseTransitionDuration: Duration.zero, // Instant reverse transition

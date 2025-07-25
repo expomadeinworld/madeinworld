@@ -61,6 +61,87 @@ api.interceptors.response.use(
   }
 );
 
+// User service methods
+export const userService = {
+  // Get all users with pagination and filtering
+  getUsers: async (params = {}) => {
+    const response = await axios.get('http://localhost:8083/api/admin/users', {
+      params,
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800'
+      }
+    });
+    return response.data;
+  },
+
+  // Get single user by ID
+  getUser: async (userId) => {
+    const response = await axios.get(`http://localhost:8083/api/admin/users/${userId}`, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800'
+      }
+    });
+    return response.data;
+  },
+
+  // Update user
+  updateUser: async (userId, userData) => {
+    const response = await axios.put(`http://localhost:8083/api/admin/users/${userId}`, userData, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800'
+      }
+    });
+    return response.data;
+  },
+
+  // Delete user
+  deleteUser: async (userId) => {
+    const response = await axios.delete(`http://localhost:8083/api/admin/users/${userId}`, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Update user status
+  updateUserStatus: async (userId, statusData) => {
+    const response = await axios.post(`http://localhost:8083/api/admin/users/${userId}/status`, statusData, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Get user analytics
+  getUserAnalytics: async () => {
+    const response = await axios.get('http://localhost:8083/api/admin/users/analytics', {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Bulk update users
+  bulkUpdateUsers: async (bulkData) => {
+    const response = await axios.post('http://localhost:8083/api/admin/users/bulk-update', bulkData, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+};
+
 // API service methods
 export const productService = {
   // Get all products
@@ -173,6 +254,155 @@ export const healthService = {
   // Check service health
   checkHealth: async () => {
     const response = await api.get('/health');
+    return response.data;
+  },
+};
+
+// Order service methods
+export const orderService = {
+  // Get all orders with pagination and filtering
+  getOrders: async (params = {}) => {
+    const response = await axios.get('http://localhost:8082/api/admin/orders', {
+      params,
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Get single order by ID
+  getOrder: async (orderId) => {
+    const response = await axios.get(`http://localhost:8082/api/admin/orders/${orderId}`, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Update order status
+  updateOrderStatus: async (orderId, status, reason = '') => {
+    const response = await axios.put(`http://localhost:8082/api/admin/orders/${orderId}/status`, {
+      status,
+      reason
+    }, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Delete/cancel order
+  deleteOrder: async (orderId) => {
+    const response = await axios.delete(`http://localhost:8082/api/admin/orders/${orderId}`, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Bulk update orders
+  bulkUpdateOrders: async (orderIds, status, reason = '') => {
+    const response = await axios.post('http://localhost:8082/api/admin/orders/bulk-update', {
+      order_ids: orderIds,
+      status,
+      reason
+    }, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Get order statistics
+  getStatistics: async (dateFrom = '', dateTo = '') => {
+    const params = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    const response = await axios.get('http://localhost:8082/api/admin/orders/statistics', {
+      params,
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+};
+
+// Cart service methods
+export const cartService = {
+  // Get all carts with pagination and filtering
+  getCarts: async (params = {}) => {
+    const response = await axios.get('http://localhost:8082/api/admin/carts', {
+      params,
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Get single cart by ID
+  getCart: async (cartId) => {
+    const response = await axios.get(`http://localhost:8082/api/admin/carts/${cartId}`, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Update cart item quantity
+  updateCartItem: async (cartId, productId, quantity) => {
+    const response = await axios.put(`http://localhost:8082/api/admin/carts/${cartId}/items`, {
+      product_id: productId,
+      quantity: quantity
+    }, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Delete cart
+  deleteCart: async (cartId) => {
+    const response = await axios.delete(`http://localhost:8082/api/admin/carts/${cartId}`, {
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
+    return response.data;
+  },
+
+  // Get cart statistics
+  getStatistics: async (dateFrom = '', dateTo = '') => {
+    const params = {};
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+
+    const response = await axios.get('http://localhost:8082/api/admin/carts/statistics', {
+      params,
+      headers: {
+        'X-Admin-Request': 'true',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
+      }
+    });
     return response.data;
   },
 };

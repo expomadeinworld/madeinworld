@@ -51,11 +51,12 @@ class Product {
   }
 
   bool get hasStock {
-    // Exhibition stores and malls always show as having stock
-    if (storeType == StoreType.exhibitionStore || storeType == StoreType.exhibitionMall) {
+    // Only 无人商店 (UnmannedStore) mini-app validates stock
+    // All other mini-apps have infinite stock
+    if (miniAppType != MiniAppType.unmannedStore) {
       return true;
     }
-    // Unmanned stores and warehouses check actual stock
+    // For unmanned stores, check actual stock
     return displayStock != null && displayStock! > 0;
   }
 
@@ -109,7 +110,7 @@ class Product {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'].toString(), // Convert int to string for compatibility
+      id: json['uuid'] ?? json['id'].toString(), // Use UUID if available, fallback to integer ID
       sku: json['sku'],
       title: json['title'],
       descriptionShort: json['description_short'],
@@ -126,6 +127,31 @@ class Product {
       imageUrls: List<String>.from(json['image_urls'] ?? []),
       categoryIds: List<String>.from(json['category_ids'] ?? []),
       subcategoryIds: List<String>.from(json['subcategory_ids'] ?? []),
+      stockLeft: json['stock_left'],
+      minimumOrderQuantity: json['minimum_order_quantity'] ?? 1,
+    );
+  }
+
+  /// Factory constructor for simplified backend API response format (from order service)
+  factory Product.fromBackendJson(Map<String, dynamic> json) {
+    return Product(
+      id: json['id'].toString(),
+      sku: json['sku'] ?? '',
+      title: json['title'] ?? '',
+      descriptionShort: '', // Not available in backend response
+      descriptionLong: '', // Not available in backend response
+      manufacturerId: '', // Not available in backend response
+      storeType: StoreType.exhibitionStore, // Default, will be resolved from context
+      miniAppType: MiniAppType.retailStore, // Default, will be resolved from context
+      storeId: null, // Not available in backend response
+      mainPrice: (json['main_price'] ?? 0.0).toDouble(),
+      strikethroughPrice: null, // Not available in backend response
+      isActive: json['is_active'] ?? true,
+      isFeatured: false, // Not available in backend response
+      isMiniAppRecommendation: false, // Not available in backend response
+      imageUrls: [], // Not available in backend response
+      categoryIds: [], // Not available in backend response
+      subcategoryIds: [], // Not available in backend response
       stockLeft: json['stock_left'],
       minimumOrderQuantity: json['minimum_order_quantity'] ?? 1,
     );

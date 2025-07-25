@@ -74,7 +74,7 @@ func GetUserID(c *gin.Context) (string, bool) {
 	if !exists {
 		return "", false
 	}
-	
+
 	userIDStr, ok := userID.(string)
 	return userIDStr, ok
 }
@@ -83,7 +83,7 @@ func GetUserID(c *gin.Context) (string, bool) {
 func ValidateMiniAppType(c *gin.Context) (models.MiniAppType, bool) {
 	miniAppTypeStr := c.Param("mini_app_type")
 	miniAppType := models.MiniAppType(miniAppTypeStr)
-	
+
 	if !miniAppType.IsValid() {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{
 			Error:   "Invalid mini-app type",
@@ -91,6 +91,24 @@ func ValidateMiniAppType(c *gin.Context) (models.MiniAppType, bool) {
 		})
 		return "", false
 	}
-	
+
 	return miniAppType, true
+}
+
+// AdminMiddleware ensures the user has admin privileges
+func AdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Check if this is an admin request
+		isAdminRequest := c.GetHeader("X-Admin-Request") == "true"
+		if !isAdminRequest {
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				Error:   "Admin access required",
+				Message: "This endpoint requires admin privileges",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }
