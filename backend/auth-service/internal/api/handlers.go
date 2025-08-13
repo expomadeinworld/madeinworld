@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -10,9 +11,11 @@ import (
 
 	"github.com/expomadeinworld/madeinworld/auth-service/internal/db"
 	"github.com/expomadeinworld/madeinworld/auth-service/internal/models"
+	"github.com/expomadeinworld/madeinworld/auth-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Handler holds the database connection and handles HTTP requests
@@ -47,8 +50,12 @@ func (h *Handler) Health(c *gin.Context) {
 	})
 }
 
-// Signup handles user registration
+// Signup handles user registration (DEPRECATED - use email verification instead)
 func (h *Handler) Signup(c *gin.Context) {
+	// Add deprecation warning to response headers
+	c.Header("X-Deprecated", "true")
+	c.Header("X-Deprecation-Message", "Password-based signup is deprecated. Use /api/auth/send-verification instead.")
+
 	var req models.SignupRequest
 
 	// Bind and validate request
@@ -99,8 +106,12 @@ func (h *Handler) Signup(c *gin.Context) {
 	})
 }
 
-// Login handles user authentication
+// Login handles user authentication (DEPRECATED - use email verification instead)
 func (h *Handler) Login(c *gin.Context) {
+	// Add deprecation warning to response headers
+	c.Header("X-Deprecated", "true")
+	c.Header("X-Deprecation-Message", "Password-based login is deprecated. Use /api/auth/send-verification instead.")
+
 	var req models.LoginRequest
 
 	// Bind and validate request
@@ -140,6 +151,12 @@ func (h *Handler) Login(c *gin.Context) {
 			Message: "Email or password is incorrect",
 		})
 		return
+	}
+
+	// Update last login timestamp
+	if err := h.DB.UpdateLastLogin(ctx, user.ID); err != nil {
+		// Log the error but don't fail the login
+		fmt.Printf("Failed to update last login for user %s: %v\n", user.ID, err)
 	}
 
 	// Generate JWT token
@@ -276,5 +293,259 @@ func (h *Handler) GetProfile(c *gin.Context) {
 		"user_id": userID,
 		"email":   email,
 		"message": "Profile retrieved successfully",
+	})
+}
+
+// UserSendVerification handles sending verification codes for user login/registration
+func (h *Handler) UserSendVerification(c *gin.Context) {
+	var req models.SendUserVerificationRequest
+
+	// Bind and validate request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "Invalid request data",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Get client IP
+	clientIP := getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	// Security logging
+	fmt.Printf("[USER_AUTH] Verification request from IP: %s, Email: %s, UserAgent: %s\n",
+		clientIP, req.Email, userAgent)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Check rate limiting - TEMPORARILY DISABLED FOR TESTING
+	// TODO: Re-enable rate limiting in production
+	/*
+		maxRequests := getEnvInt("RATE_LIMIT_REQUESTS_PER_HOUR", 5)
+		rateLimited, err := h.DB.CheckUserRateLimit(ctx, clientIP, maxRequests, 1)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error:   "Rate limit check failed",
+				Message: err.Error(),
+			})
+			return
+		}
+
+		if rateLimited {
+			c.JSON(http.StatusTooManyRequests, models.ErrorResponse{
+				Error:   "Rate limit exceeded",
+				Message: fmt.Sprintf("Maximum %d requests per hour allowed", maxRequests),
+			})
+			return
+		}
+	*/
+
+	// Generate 6-digit verification code
+	code, err := generateVerificationCode()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to generate verification code",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Hash the code
+	codeHash, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to process verification code",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Calculate expiration time
+	expirationMinutes := getEnvInt("CODE_EXPIRATION_MINUTES", 10)
+	expiresAt := time.Now().Add(time.Duration(expirationMinutes) * time.Minute)
+
+	// Store verification code in database
+	verificationCode, err := h.DB.CreateUserVerificationCode(ctx, req.Email, string(codeHash), clientIP, expiresAt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to store verification code",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Increment rate limit - TEMPORARILY DISABLED FOR TESTING
+	// TODO: Re-enable rate limiting in production
+	/*
+		if err := h.DB.IncrementUserRateLimit(ctx, clientIP); err != nil {
+			// Log error but don't fail the request
+			fmt.Printf("Failed to increment user rate limit: %v\n", err)
+		}
+	*/
+
+	// Send email
+	emailService := services.NewEmailService()
+	emailData := models.EmailVerificationData{
+		Code:         code,
+		Email:        req.Email,
+		ExpiresAt:    expiresAt,
+		IPAddress:    clientIP,
+		UserAgent:    c.GetHeader("User-Agent"),
+		Timestamp:    time.Now(),
+		ExpiresInMin: expirationMinutes,
+	}
+
+	if err := emailService.SendUserVerificationCode(req.Email, emailData); err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to send verification email",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Security logging - success
+	fmt.Printf("[USER_AUTH] Verification code sent successfully to %s from IP: %s\n",
+		req.Email, clientIP)
+
+	// Return success response
+	c.JSON(http.StatusOK, models.SendUserVerificationResponse{
+		Message:   "Verification code sent successfully",
+		ExpiresAt: verificationCode.ExpiresAt,
+	})
+}
+
+// UserVerifyCode handles verification code validation and JWT generation for users
+func (h *Handler) UserVerifyCode(c *gin.Context) {
+	var req models.VerifyUserCodeRequest
+
+	// Bind and validate request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "Invalid request data",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Get client IP for security logging
+	clientIP := getClientIP(c)
+	userAgent := c.GetHeader("User-Agent")
+
+	// Security logging
+	fmt.Printf("[USER_AUTH] Code verification attempt from IP: %s, Email: %s, UserAgent: %s\n",
+		clientIP, req.Email, userAgent)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get verification code from database
+	verificationCode, err := h.DB.GetUserVerificationCode(ctx, req.Email)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+				Error:   "Invalid or expired code",
+				Message: "No valid verification code found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to retrieve verification code",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Check if code has exceeded maximum attempts
+	maxAttempts := getEnvInt("MAX_CODE_ATTEMPTS", 3)
+	if verificationCode.Attempts >= maxAttempts {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "Maximum attempts exceeded",
+			Message: fmt.Sprintf("Code has exceeded maximum %d attempts", maxAttempts),
+		})
+		return
+	}
+
+	// Verify the code
+	if err := bcrypt.CompareHashAndPassword([]byte(verificationCode.CodeHash), []byte(req.Code)); err != nil {
+		// Increment attempt count
+		if updateErr := h.DB.UpdateUserVerificationCodeAttempts(ctx, verificationCode.ID); updateErr != nil {
+			fmt.Printf("Failed to update user attempt count: %v\n", updateErr)
+		}
+
+		// Security logging - failed attempt
+		fmt.Printf("[USER_AUTH] FAILED verification attempt from IP: %s, Email: %s, Attempts: %d\n",
+			clientIP, req.Email, verificationCode.Attempts+1)
+
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "Invalid verification code",
+			Message: "The provided code is incorrect",
+		})
+		return
+	}
+
+	// Mark code as used
+	if err := h.DB.MarkUserVerificationCodeUsed(ctx, verificationCode.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to mark code as used",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Check if user exists, if not auto-register
+	user, err := h.DB.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			// Auto-register new user
+			user, err = h.DB.CreateUserFromEmail(ctx, req.Email)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+					Error:   "Failed to create user account",
+					Message: err.Error(),
+				})
+				return
+			}
+			fmt.Printf("[USER_AUTH] Auto-registered new user: %s\n", req.Email)
+		} else {
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				Error:   "Failed to retrieve user",
+				Message: err.Error(),
+			})
+			return
+		}
+	}
+
+	// Update last login timestamp
+	if err := h.DB.UpdateLastLogin(ctx, user.ID); err != nil {
+		// Log the error but don't fail the login
+		fmt.Printf("Failed to update last login for user %s: %v\n", user.ID, err)
+	}
+
+	// Generate JWT token
+	token, err := h.generateJWTToken(user.ID, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to generate token",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Calculate token expiration
+	expirationHours := getEnvInt("JWT_EXPIRATION_HOURS", 24)
+	tokenExpiresAt := time.Now().Add(time.Duration(expirationHours) * time.Hour)
+
+	// Security logging - successful authentication
+	fmt.Printf("[USER_AUTH] SUCCESSFUL authentication for %s from IP: %s, Token expires: %s\n",
+		req.Email, clientIP, tokenExpiresAt.Format("2006-01-02 15:04:05"))
+
+	// Return success response
+	c.JSON(http.StatusOK, models.VerifyUserCodeResponse{
+		Token:     token,
+		ExpiresAt: tokenExpiresAt,
+		User:      *user,
 	})
 }

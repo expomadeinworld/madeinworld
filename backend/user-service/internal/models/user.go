@@ -19,9 +19,8 @@ const (
 type UserStatus string
 
 const (
-	StatusActive    UserStatus = "active"
-	StatusInactive  UserStatus = "inactive"
-	StatusSuspended UserStatus = "suspended"
+	StatusActive      UserStatus = "active"
+	StatusDeactivated UserStatus = "deactivated"
 )
 
 // User represents a user in the system
@@ -30,7 +29,6 @@ type User struct {
 	Username     string    `json:"username" db:"username"`
 	Email        string    `json:"email" db:"email"`
 	PasswordHash string    `json:"-" db:"password_hash"` // Never expose password hash in JSON
-	Phone        *string   `json:"phone,omitempty" db:"phone"`
 	FirstName    *string   `json:"first_name,omitempty" db:"first_name"`
 	LastName     *string   `json:"last_name,omitempty" db:"last_name"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
@@ -40,6 +38,7 @@ type User struct {
 	FullName   string     `json:"full_name"`
 	Role       UserRole   `json:"role"`
 	Status     UserStatus `json:"status"`
+	LastLogin  *time.Time `json:"last_login,omitempty"`
 	OrderCount int        `json:"order_count,omitempty"`
 	TotalSpent float64    `json:"total_spent,omitempty"`
 }
@@ -64,13 +63,23 @@ type UserSearchParams struct {
 	Order  string      `json:"order"`
 }
 
+// UserCreateRequest represents user creation request
+type UserCreateRequest struct {
+	Username  string     `json:"username" binding:"required,min=3"`
+	Email     string     `json:"email" binding:"required,email"`
+	Password  string     `json:"password" binding:"required,min=8"`
+	FirstName *string    `json:"first_name,omitempty"`
+	LastName  *string    `json:"last_name,omitempty"`
+	Role      UserRole   `json:"role" binding:"required"`
+	Status    UserStatus `json:"status" binding:"required"`
+}
+
 // UserUpdateRequest represents user update request
 type UserUpdateRequest struct {
-	FullName    *string   `json:"full_name,omitempty"`
-	Email       *string   `json:"email,omitempty"`
-	PhoneNumber *string   `json:"phone_number,omitempty"`
-	Role        *UserRole `json:"role,omitempty"`
-	AvatarURL   *string   `json:"avatar_url,omitempty"`
+	FullName *string     `json:"full_name,omitempty"`
+	Email    *string     `json:"email,omitempty"`
+	Role     *UserRole   `json:"role,omitempty"`
+	Status   *UserStatus `json:"status,omitempty"`
 }
 
 // UserStatusUpdateRequest represents user status update request
@@ -140,7 +149,7 @@ func ValidateUserRole(role string) bool {
 // ValidateUserStatus validates if the status is valid
 func ValidateUserStatus(status string) bool {
 	switch UserStatus(status) {
-	case StatusActive, StatusInactive, StatusSuspended:
+	case StatusActive, StatusDeactivated:
 		return true
 	default:
 		return false
@@ -155,5 +164,5 @@ func (u *User) GetUserStatus() UserStatus {
 		return StatusActive
 	}
 
-	return StatusInactive
+	return StatusDeactivated
 }

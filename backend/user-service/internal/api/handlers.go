@@ -104,6 +104,61 @@ func (h *Handler) GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// CreateUser handles POST /api/admin/users
+func (h *Handler) CreateUser(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var req models.UserCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "Invalid request data",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Validate role
+	if !models.ValidateUserRole(string(req.Role)) {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "Invalid role",
+			Message: "The specified role is not valid",
+		})
+		return
+	}
+
+	// Validate status
+	if !models.ValidateUserStatus(string(req.Status)) {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "Invalid status",
+			Message: "The specified status is not valid",
+		})
+		return
+	}
+
+	// Create user in repository
+	user, err := h.userRepo.CreateUser(ctx, req)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+			c.JSON(http.StatusConflict, models.ErrorResponse{
+				Error:   "User already exists",
+				Message: "A user with this email or username already exists",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to create user",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, models.SuccessResponse{
+		Message: "User created successfully",
+		Data:    user,
+	})
+}
+
 // GetUser handles GET /api/admin/users/{user_id}
 func (h *Handler) GetUser(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

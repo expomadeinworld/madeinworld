@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/expomadeinworld/madeinworld/auth-service/internal/api"
 	"github.com/expomadeinworld/madeinworld/auth-service/internal/db"
+	"github.com/expomadeinworld/madeinworld/auth-service/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -25,8 +27,18 @@ func main() {
 	}
 	defer database.Close()
 
+	// Initialize user verification schema
+	if err := database.InitUserSchema(context.Background()); err != nil {
+		log.Fatalf("Failed to initialize user schema: %v", err)
+	}
+
 	// Initialize handlers
 	handler := api.NewHandler(database)
+
+	// Initialize cleanup service (runs every 30 minutes)
+	cleanupService := services.NewCleanupService(database, 30)
+	cleanupService.Start()
+	defer cleanupService.Stop()
 
 	// Set up Gin router
 	router := setupRouter(handler)
@@ -72,8 +84,17 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	// API routes
 	auth := router.Group("/api/auth")
 	{
+		// Legacy password-based authentication (will be deprecated)
 		auth.POST("/signup", handler.Signup)
 		auth.POST("/login", handler.Login)
+
+		// New passwordless authentication for users
+		auth.POST("/send-verification", handler.UserSendVerification)
+		auth.POST("/verify-code", handler.UserVerifyCode)
+
+		// Admin email verification routes (separate endpoints)
+		auth.POST("/admin/send-verification", handler.AdminSendVerification)
+		auth.POST("/admin/verify-code", handler.AdminVerifyCode)
 	}
 
 	// Protected routes for testing JWT validation

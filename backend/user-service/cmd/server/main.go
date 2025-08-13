@@ -4,10 +4,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"user-service/internal/api"
 	"user-service/internal/db"
+
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -64,6 +65,7 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	{
 		// User management endpoints
 		adminGroup.GET("/users", handler.GetUsers)
+		adminGroup.POST("/users", handler.CreateUser)
 		adminGroup.GET("/users/analytics", handler.GetUserAnalytics)
 		adminGroup.GET("/users/:user_id", handler.GetUser)
 		adminGroup.PUT("/users/:user_id", handler.UpdateUser)

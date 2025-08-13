@@ -1,64 +1,225 @@
-### **Recommended System Architecture & Technology Stack**
+This document refines the original plan to a professional, long-term, globally scalable, and cost-efficient architecture. It adopts a Serverless SQL foundation (PostgreSQL in both regions), modern serverless/container hosting, and a phased rollout to reduce risk. It also incorporates tactical guidance on ingress, secrets management, and asynchronous data synchronization.
 
-The proposed architecture is robust, leveraging a modern technology stack well-suited for a high-performance, globally distributed application. The following outlines the definitive stack and architectural principles, incorporating best practices to ensure stability, scalability, and maintainability.
+---
 
-#### **3.1 Definitive Technology Stack**
+## **1\. Executive Summary**
 
-| Component | Technology / Service | Rationale |
-| :---- | :---- | :---- |
-| **Frontend (Mobile App)** | Flutter | Enables a single codebase for both iOS and Android, ensuring a consistent user experience while optimizing development resources. |
-| **Frontend (Admin Panel)** | React with MUI | A powerful and widely-adopted combination for building complex, data-driven, and responsive web-based administrative interfaces. |
-| **Backend Services** | Go (Golang) | Ideal for high-concurrency, high-performance microservices. Its efficiency is perfectly suited for API and data synchronization tasks. |
-| **Containerization** | Docker | The industry standard for creating portable, self-contained application environments, ensuring consistency from development to production. |
-| **Orchestration** | Kubernetes (AWS EKS & Alibaba Cloud ACK) | Manages containerized applications at scale, providing automated deployment, scaling, and operational resilience. |
-| **Primary Database** | Managed PostgreSQL (AWS RDS & ApsaraDB for RDS) | Provides the power of a relational database with the reliability of a managed service, handling backups, patching, and scaling. |
-| **Cloud Infrastructure** | AWS (eu-central-1 Frankfurt) & Alibaba Cloud (cn-shanghai) | A necessary dual-provider strategy to ensure optimal performance and regulatory compliance for both global and mainland China users. |
-| **DNS & Routing** | AWS Route 53 (Geolocation Routing Policy) | The correct, mandatory choice for intelligently directing users to the geographically nearest and most performant backend cluster. |
+* **Keep PostgreSQL** for flexibility, developer velocity, and professional maintainability.  
+* **Replace always-on clusters** (EKS/ACK, RDS) with modern, scalable alternatives:  
+  * **Compute**: AWS App Runner (global), Alibaba SAE or Function Compute (China).  
+  * **Edge Ingress**: Cloudflare Workers (global thin proxy), Alibaba API Gateway (China).  
+  * **Databases**: Neon (Serverless PostgreSQL, global) and ApsaraDB for PostgreSQL (China).  
+  * **Data Sync**: Asynchronous, event-driven synchronization (SQS on AWS, MNS/RocketMQ on Alibaba).  
+* **Formalize secrets management** with cloud-native Secrets Managers.  
+* **Roll out in two phases**: Migrate the global stack first, then add the China region and synchronization.
 
-#### **3.2 Core Architectural Principles & Refinements**
+---
 
-To ensure the system is "hard to go wrong," we will adhere to the following architectural pillars:
+## **2\. Phased Rollout Plan**
 
-**1\. Microservices Architecture (Backend)**
+### **Phase 1: Migrate the Global Stack (AWS)**
 
-Instead of a single monolithic backend, the Go application will be decomposed into several independent microservices. This enhances scalability, fault isolation, and development speed. Each service will own its domain and communicate via well-defined APIs.
+* **Compute**:  
+  * Deploy existing Go microservices (Auth, Catalog, Order, User) as containerized services on **AWS App Runner**.  
+* **Database**:  
+  * Use **Neon (Serverless PostgreSQL)** for the global database.  
+  * Update service configuration to point to Neon, with credentials fetched via **AWS Secrets Manager** at runtime.  
+* **Ingress**:  
+  * Implement a **Cloudflare Worker** as a thin HTTPS proxy to the App Runner services (no business logic initially).  
+* **Outcome**:  
+  * EKS and RDS (global) are decommissioned.  
+  * Lower operational cost, simpler ops, and the same business capabilities are maintained for non-China users.
 
-* **Key Services:**  
-  * Auth Service: Manages user registration, login, and session management.  
-  * Catalog Service: Manages products, categories, manufacturers, and store definitions.  
-  * Inventory Service: A dedicated service for the entire supply chain: Stock\_Requests, Shipments, real-time Inventory levels, and Stock\_Verifications.  
-  * Order Service: Manages Carts and Orders.  
-  * Notification Service: Handles the logic for notifying all stakeholders (Admin, Manufacturer, 3PL, Partner) based on events from other services.
+### **Phase 2: Add China Region \+ Synchronization**
 
-**2\. Infrastructure as Code (IaC)**
+* **Compute**:  
+  * Deploy the same Go services in Alibaba Cloud using **Serverless App Engine (SAE)** for long-running containers, or Function Compute (containers) if appropriate.  
+* **Database**:  
+  * Provision **ApsaraDB for PostgreSQL** (e.g., in cn-shanghai) and configure services.  
+* **Ingress**:  
+  * Use **Alibaba API Gateway** to route traffic to the SAE/Function Compute services.  
+* **Synchronization**:  
+  * Implement asynchronous, cross-region data sync:  
+    * **AWS → CN**: SQS \+ a small "sync-out" worker → calls a CN API endpoint → upserts into ApsaraDB.  
+    * **CN → AWS**: MNS/RocketMQ \+ a "sync-out" function → calls an AWS API endpoint → upserts into Neon.  
+* **Outcome**:  
+  * Region-local data is established for performance and compliance.  
+  * Event-driven sync provides global data consistency.
 
-All cloud infrastructure in both AWS and Alibaba Cloud will be defined and managed through code (using a tool like **Terraform**).
+---
 
-* **Why it's critical:** This eliminates manual configuration errors, ensures both the Frankfurt and Shanghai environments are perfectly consistent, and allows for rapid, repeatable deployments or disaster recovery. This is a non-negotiable principle for robust multi-region operations.
+## **3\. Definitive Technology Stack**
 
-**3\. CI/CD Automation**
+* **Frontend (Mobile App)**: Flutter (iOS/Android single codebase)  
+* **Admin Panel**: React \+ MUI  
+* **Backend Language/Framework**: Go (Gin), HTTP JSON APIs  
+* **Containerization**: Docker  
+* **Compute (Global)**: AWS App Runner  
+* **Compute (China)**: Alibaba Serverless App Engine (SAE) or Function Compute (containers)  
+* **Edge Ingress**:  
+  * **Global**: Cloudflare Workers (thin proxy)  
+  * **China**: Alibaba API Gateway (HTTPS)  
+* **Databases (Relational SQL)**:  
+  * **Global**: Neon (PostgreSQL)  
+  * **China**: ApsaraDB for PostgreSQL  
+* **Data Sync & Messaging**:  
+  * **AWS**: SQS (Simple Queue Service)  
+  * **Alibaba Cloud**: MNS (Message Service) or RocketMQ  
+* **Secrets & Config**:  
+  * **AWS**: AWS Secrets Manager (fetched via IAM role at runtime)  
+  * **Alibaba Cloud**: KMS/Secrets Manager equivalent (fetched via RAM roles)  
+* **Observability**:  
+  * **AWS**: CloudWatch (Logs, Metrics), X-Ray (optional)  
+  * **Alibaba**: Log Service (SLS), CloudMonitor  
+  * **Cloudflare**: Request Logs & Analytics  
+* **DNS & Routing**:  
+  * AWS Route 53 with geolocation policies.  
+* **CI/CD & IaC**:  
+  * **CI/CD**: GitHub Actions (build, test, containerize, push, deploy)  
+  * **IaC**: Terraform (AWS \+ Alibaba providers)
 
-A fully automated CI/CD (Continuous Integration/Continuous Deployment) pipeline (e.g., using GitHub Actions or GitLab CI) will be implemented.
+---
 
-* **Workflow:** When a developer pushes code, the pipeline automatically runs tests, builds the Go binary, containerizes it with Docker, pushes the image to a registry (Amazon ECR / Alibaba Cloud ACR), and deploys the new version to the Kubernetes cluster without downtime. This minimizes deployment risk and accelerates development.
+## **4\. Core Architecture**
 
-**4\. Data Management & Synchronization Strategy**
+### **4.1 Request Flow (Global)**
 
-This is the most critical component of the dual-region architecture. The strategy is designed to maintain data integrity while ensuring high performance.
+Client → Cloudflare Worker (HTTPS) → App Runner service (e.g., Catalog) → Neon (PostgreSQL)
 
-* **Strict Region-Locking of Transactional Data:** Data that is transactional and region-specific **must** remain in its origin database. This includes:  
-  * Orders  
-  * Shopping Carts  
-  * Inventory levels for specific stores  
-  * All logistics data (Stock Requests, Shipments, Verifications)  
-  * This is essential for performance and data privacy/compliance.  
-* Asynchronous Event-Driven Synchronization for Global Data:  
-  A dedicated "Data Synchronizer" Go module will handle syncing essential global data. To do this reliably, it will use an event-driven pattern.  
-  * **Source of Truth:** The European (AWS) cluster will be designated as the **primary source of truth for global data**. All changes to the global product catalog, manufacturer details, etc., will be made via the Admin Panel connected to the EU backend.  
-  * **Synchronization Flow:**  
-    1. An Admin updates a product via the React panel. The request hits the Catalog Service in the EU cluster.  
-    2. The Catalog Service successfully updates its primary AWS RDS PostgreSQL database.  
-    3. Immediately after the database commit, the service publishes an event (e.g., product.updated) with the product's new data to a message queue (like **AWS SQS**).  
-    4. The "Data Synchronizer" service is subscribed to this queue. It picks up the event.  
-    5. It then connects to the Shanghai (Alibaba Cloud) database and performs the corresponding INSERT or UPDATE operation, ensuring the record reflects the change.  
-  * **Global User Profiles:** User accounts (Users table) are the main exception and require a carefully managed **two-way sync** to allow a user to change their password or profile from anywhere. The event-driven model still applies, but each synchronizer must be intelligent enough to handle events originating from either region, using timestamps (updated\_at) to prevent overwriting newer data with older data (conflict resolution).
+* The worker acts as a thin, secure proxy.  
+* App Runner scales automatically, removing cluster management overhead.
+
+### **4.2 Request Flow (China)**
+
+Client → Alibaba API Gateway (HTTPS) → SAE/Function Compute service → ApsaraDB for PostgreSQL
+
+* SAE is recommended for service parity with App Runner's model.
+
+### **4.3 Data Synchronization**
+
+* **Event Source**: After a successful DB commit, the application publishes a minimal change event.  
+* **AWS → CN**: Go service → SQS → Sync Worker (Lambda/App Runner) → Calls CN API → Writes to ApsaraDB.  
+* **CN → AWS**: Go service → MNS/RocketMQ → Sync Worker (FC/SAE) → Calls AWS API → Writes to Neon.  
+* **Conflict Resolution**: Use updated\_at timestamps (last-writer-wins) or domain-specific rules.
+
+---
+
+## **5\. Service Responsibilities**
+
+* **Auth Service**: Manages passwordless flow, JWT issuance/validation.  
+* **Catalog Service**: Manages categories, products, and store definitions.  
+* **Order Service**: Manages carts and orders.  
+* **Inventory/Notification Services**: As defined previously, scoped by region.
+
+All services remain stateless HTTP JSON servers and use the region-local PostgreSQL repository. They are responsible for emitting events upon state changes to trigger synchronization.
+
+---
+
+## **6\. Secrets & Configuration**
+
+* **Global (AWS)**: Store DB credentials in AWS Secrets Manager. App Runner services are granted an IAM role to retrieve secrets at runtime.  
+* **China (Alibaba)**: Use Alibaba Secrets Manager with RAM roles for SAE/Function Compute. The same retrieval and short-term caching pattern applies.
+
+---
+
+## **7\. CI/CD and IaC**
+
+* **IaC (Terraform)**: Define all infrastructure resources (App Runner, SQS, SAE, MNS, IAM/RAM roles, DNS) as code for consistency and repeatability.  
+* **CI/CD (GitHub Actions)**: Create workflows to lint, test, build Go binaries, create Docker images, push to registries (ECR for AWS, ACR for Alibaba), and trigger deployments to App Runner and SAE.
+
+---
+
+## **8\. Observability & Reliability**
+
+* **Logging**: Use structured JSON logs in all services for easier parsing and searching.  
+* **Metrics**: Monitor basic endpoint metrics (latency, error rate, throughput) and key business metrics (e.g., orders per hour).  
+* **Tracing**: Optionally implement distributed tracing (e.g., OpenTelemetry) and propagate correlation IDs through all services via headers.  
+* **Health Checks**: Leverage built-in health checks from App Runner and SAE.  
+* **Backups**: Configure automated backup policies for Neon and ApsaraDB.
+
+---
+
+## **9\. Security**
+
+* **Transport**: Enforce HTTPS everywhere with HSTS at the edge.  
+* **Authentication**: Continue using the JWT-based pattern.  
+* **Authorization**: Implement role-based checks within services.  
+* **Rate Limiting**: Use Cloudflare and Alibaba API Gateway for basic IP-based rate limiting.  
+* **Secrets**: Strictly avoid plaintext secrets in code or environment variables. Always use a secrets manager.  
+* **Database Access**: Restrict network access to the databases from only the necessary application sources.
+
+---
+
+## **10\. DNS & Routing**
+
+* **Route 53**:  
+  * device-api.madeinworld.com → Geolocation policy → Points to Cloudflare Worker (Global).  
+  * device-api-cn.madeinworld.com → Geolocation policy (for China) → Points to Alibaba API Gateway.  
+* **Client Configuration**: Clients in China should be configured to use the device-api-cn endpoint for optimal latency.
+
+---
+
+## **11\. Reference Code Snippets**
+
+### **Thin Cloudflare Worker Proxy**
+
+JavaScript
+
+export default {  
+  async fetch(request) {  
+    const url \= new URL(request.url);  
+    // Replace with your App Runner service hostname  
+    url.hostname \= "your-app-runner-service.awsapprunner.com";
+
+    // Attach a correlation ID for tracing  
+    const headers \= new Headers(request.headers);  
+    headers.set("x-correlation-id", crypto.randomUUID());
+
+    return fetch(url.toString(), {  
+      method: request.method,  
+      headers,  
+      body: request.body,  
+      redirect: "follow",  
+    });  
+  }  
+}
+
+### **Publish Event to SQS (Go)**
+
+Go
+
+import (  
+    "context"  
+    "encoding/json"  
+    "time"  
+    "github.com/aws/aws-sdk-go-v2/service/sqs"  
+    "github.com/aws/aws-sdk-go-v2/aws"  
+)
+
+type ProductUpdatedEvent struct {  
+    ID        string    \`json:"id"\`  
+    UpdatedAt time.Time \`json:"updated\_at"\`  
+}
+
+// publishProductUpdated sends an event to SQS after a successful DB write.  
+func publishProductUpdated(ctx context.Context, sqsClient \*sqs.Client, queueURL string, event ProductUpdatedEvent) error {  
+    body, err := json.Marshal(event)  
+    if err \!= nil {  
+        return err // Should not happen with this struct  
+    }
+
+    \_, err \= sqsClient.SendMessage(ctx, \&sqs.SendMessageInput{  
+        QueueUrl:    aws.String(queueURL),  
+        MessageBody: aws.String(string(body)),  
+    })  
+    return err  
+}
+
+---
+
+## **12\. Migration Notes**
+
+* **Database Schema**: Keep the existing schema; simply point services to the new Neon/ApsaraDB instances.  
+* **Business Logic**: Do not move business logic into edge workers initially. Keep them as thin, reliable proxies.  
+* **Rollout Order**: Finalize and stabilize the AWS global rollout before introducing the complexity of the China region and data synchronization.  
+* **IaC First**: Adopt Terraform from the start to ensure all environments are reproducible and manageable.

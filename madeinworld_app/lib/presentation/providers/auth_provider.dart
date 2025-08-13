@@ -92,7 +92,55 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Sign up a new user
+  /// Send verification code to email (passwordless authentication)
+  Future<void> sendVerificationCode(String email) async {
+    debugPrint('AuthProvider: Sending verification code to email: $email');
+
+    _updateState(const AuthState.loading());
+
+    try {
+      await _authService.sendVerificationCode(email);
+
+      debugPrint('AuthProvider: Verification code sent successfully to: $email');
+
+      // Return to unauthenticated state but without error (waiting for code verification)
+      _updateState(const AuthState.unauthenticated());
+    } catch (e) {
+      debugPrint('AuthProvider: Failed to send verification code: $e');
+      _updateState(AuthState.unauthenticated(errorMessage: e.toString()));
+      // Re-throw the exception so the UI can handle it
+      rethrow;
+    }
+  }
+
+  /// Verify email code and authenticate user (passwordless authentication)
+  Future<void> verifyEmailCode(String email, String code) async {
+    debugPrint('AuthProvider: Verifying code for email: $email');
+
+    _updateState(const AuthState.loading());
+
+    try {
+      final response = await _authService.verifyEmailCode(email, code);
+
+      // Store authentication data
+      await _storeAuthData(response.token, response.user);
+
+      debugPrint('AuthProvider: Email verification successful for user: ${response.user.email}');
+
+      _updateState(AuthState.authenticated(
+        user: response.user,
+        token: response.token,
+      ));
+    } catch (e) {
+      debugPrint('AuthProvider: Email verification failed: $e');
+      _updateState(AuthState.unauthenticated(errorMessage: e.toString()));
+      // Re-throw the exception so the UI can handle it
+      rethrow;
+    }
+  }
+
+  /// Sign up a new user (DEPRECATED - use email verification instead)
+  @Deprecated('Use sendVerificationCode and verifyEmailCode instead')
   Future<void> signup({
     required String username,
     required String email,
@@ -101,8 +149,8 @@ class AuthProvider extends ChangeNotifier {
     String? firstName,
     String? lastName,
   }) async {
-    debugPrint('AuthProvider: Starting signup for email: $email');
-    
+    debugPrint('AuthProvider: Starting signup for email: $email (DEPRECATED)');
+
     _updateState(const AuthState.loading());
 
     try {
@@ -116,12 +164,12 @@ class AuthProvider extends ChangeNotifier {
       );
 
       final response = await _authService.signup(request);
-      
+
       // Store authentication data
       await _storeAuthData(response.token, response.user);
-      
+
       debugPrint('AuthProvider: Signup successful for user: ${response.user.email}');
-      
+
       _updateState(AuthState.authenticated(
         user: response.user,
         token: response.token,
@@ -132,24 +180,25 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Log in an existing user
+  /// Log in an existing user (DEPRECATED - use email verification instead)
+  @Deprecated('Use sendVerificationCode and verifyEmailCode instead')
   Future<void> login({
     required String email,
     required String password,
   }) async {
-    debugPrint('AuthProvider: Starting login for email: $email');
-    
+    debugPrint('AuthProvider: Starting login for email: $email (DEPRECATED)');
+
     _updateState(const AuthState.loading());
 
     try {
       final request = LoginRequest(email: email, password: password);
       final response = await _authService.login(request);
-      
+
       // Store authentication data
       await _storeAuthData(response.token, response.user);
-      
+
       debugPrint('AuthProvider: Login successful for user: ${response.user.email}');
-      
+
       _updateState(AuthState.authenticated(
         user: response.user,
         token: response.token,

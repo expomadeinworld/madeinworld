@@ -50,3 +50,47 @@ type SuccessResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
+
+// UserVerificationCode represents a verification code for user authentication
+type UserVerificationCode struct {
+	ID        string    `json:"id" db:"id"`
+	Email     string    `json:"email" db:"email"`
+	CodeHash  string    `json:"-" db:"code_hash"` // Never expose code hash
+	Attempts  int       `json:"attempts" db:"attempts"`
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	Used      bool      `json:"used" db:"used"`
+	IPAddress string    `json:"ip_address,omitempty" db:"ip_address"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// UserRateLimit represents rate limiting for user verification requests
+type UserRateLimit struct {
+	ID           string    `json:"id" db:"id"`
+	IPAddress    string    `json:"ip_address" db:"ip_address"`
+	RequestCount int       `json:"request_count" db:"request_count"`
+	WindowStart  time.Time `json:"window_start" db:"window_start"`
+}
+
+// SendUserVerificationRequest represents the request to send a verification code for users
+type SendUserVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// SendUserVerificationResponse represents the response after sending verification code for users
+type SendUserVerificationResponse struct {
+	Message   string    `json:"message"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// VerifyUserCodeRequest represents the request to verify a code for users
+type VerifyUserCodeRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required,len=6"`
+}
+
+// VerifyUserCodeResponse represents the response after successful user verification
+type VerifyUserCodeResponse struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+	User      User      `json:"user"`
+}

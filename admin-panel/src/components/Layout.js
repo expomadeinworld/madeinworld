@@ -13,6 +13,11 @@ import {
   Typography,
   useTheme,
   useMediaQuery,
+  Button,
+  Avatar,
+  Menu,
+  MenuItem,
+  Divider,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -24,8 +29,11 @@ import {
   ShoppingCart as OrdersIcon,
   ShoppingBasket as CartsIcon,
   Assessment as AnalyticsIcon,
+  AccountCircle as AccountIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const drawerWidth = 280;
 
@@ -75,10 +83,25 @@ const navigationItems = [
 const Layout = ({ children }) => {
   const theme = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleUserMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    logout();
+    handleUserMenuClose();
   };
 
   const drawer = (
@@ -196,8 +219,71 @@ const Layout = ({ children }) => {
           >
             Admin Panel
           </Typography>
-          
-          {/* Future: Add user menu, notifications, etc. */}
+
+          {/* User Menu */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              {user?.email || 'Admin'}
+            </Typography>
+            <IconButton
+              onClick={handleUserMenuOpen}
+              size="small"
+              sx={{ ml: 1 }}
+              aria-controls={anchorEl ? 'user-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={anchorEl ? 'true' : undefined}
+            >
+              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
+                <AccountIcon />
+              </Avatar>
+            </IconButton>
+          </Box>
+
+          {/* User Menu Dropdown */}
+          <Menu
+            id="user-menu"
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleUserMenuClose}
+            onClick={handleUserMenuClose}
+            PaperProps={{
+              elevation: 3,
+              sx: {
+                overflow: 'visible',
+                filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+                mt: 1.5,
+                '& .MuiAvatar-root': {
+                  width: 32,
+                  height: 32,
+                  ml: -0.5,
+                  mr: 1,
+                },
+              },
+            }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          >
+            <MenuItem onClick={handleUserMenuClose}>
+              <Avatar sx={{ bgcolor: 'primary.main' }}>
+                <AccountIcon />
+              </Avatar>
+              <Box>
+                <Typography variant="body2" fontWeight={600}>
+                  {user?.email || 'Admin User'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Administrator
+                </Typography>
+              </Box>
+            </MenuItem>
+            <Divider />
+            <MenuItem onClick={handleLogout}>
+              <ListItemIcon>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+              Sign Out
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
 

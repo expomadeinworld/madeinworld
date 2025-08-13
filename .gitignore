@@ -178,6 +178,9 @@ jspm_packages/
 # Terraform plan files
 /terraform/*.tfplan
 
+# Terraform variable files (may contain sensitive data)
+terraform/app_runner/terraform.tfvars
+
 # =============================================================================
 # ENVIRONMENT & SENSITIVE FILES
 # =============================================================================
@@ -198,6 +201,7 @@ jspm_packages/
 database.env
 db.env
 secrets.env
+values.md
 
 # API Keys and certificates
 *.pem
@@ -273,6 +277,12 @@ create_test_image.py
 
 # Root level src folder (appears to be duplicate/test code)
 /src/
+
+# =============================================================================
+# DOCUMENTATION & DEVELOPMENT FILES
+# =============================================================================
+# Chinese development documentation folder
+CR06E开发文档/
 
 # =============================================================================
 # MISC PROJECT FILES

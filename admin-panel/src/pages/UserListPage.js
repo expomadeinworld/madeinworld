@@ -37,9 +37,9 @@ import {
   Delete as DeleteIcon,
   Person as PersonIcon,
   Email as EmailIcon,
-  Phone as PhoneIcon,
   CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import { userService } from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -61,14 +61,29 @@ const UserListPage = () => {
   // Menu and dialog states
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null); // Store user ID for deletion
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  // Form states
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    role: 'Customer',
+    status: 'active'
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   
   const { showToast } = useToast();
 
   // User roles and statuses
   const userRoles = ['Customer', 'Admin', 'Manufacturer', '3PL', 'Partner'];
-  const userStatuses = ['active', 'inactive', 'suspended'];
+  const userStatuses = ['active', 'deactivated'];
 
   // Fetch users data
   const fetchUsers = async () => {
@@ -110,6 +125,7 @@ const UserListPage = () => {
 
   useEffect(() => {
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage, orderBy, order, searchTerm, roleFilter, statusFilter]);
 
   useEffect(() => {
@@ -162,13 +178,147 @@ const UserListPage = () => {
   };
 
   const handleEditUser = () => {
-    setEditDialogOpen(true);
+    // Store user data before closing menu (which sets selectedUser to null)
+    const userToEdit = selectedUser;
     handleMenuClose();
+
+    // Populate form with selected user data
+    setFormData({
+      user_id: userToEdit.id, // Store the user ID for later use (backend uses 'id' field)
+      username: userToEdit.username || '',
+      email: userToEdit.email || '',
+      password: '', // Don't populate password for security
+      first_name: userToEdit.first_name || '',
+      last_name: userToEdit.last_name || '',
+      role: userToEdit.role || 'Customer',
+      status: userToEdit.status || 'active'
+    });
+    setFormErrors({});
+    setEditDialogOpen(true);
   };
 
   const handleDeleteUser = () => {
-    setDeleteDialogOpen(true);
+    // Store user ID before closing menu (which sets selectedUser to null)
+    setUserToDelete(selectedUser.id); // Store user ID for deletion (backend uses 'id' field)
     handleMenuClose();
+    setDeleteDialogOpen(true);
+  };
+
+  // Form handling functions
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      email: '',
+      password: '',
+      first_name: '',
+      last_name: '',
+      role: 'Customer',
+      status: 'active'
+    });
+    setFormErrors({});
+  };
+
+  const handleCreateUser = () => {
+    resetForm();
+    setCreateDialogOpen(true);
+  };
+
+  const handleFormChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const validateForm = (isEdit = false) => {
+    const errors = {};
+
+    if (!formData.username.trim()) errors.username = 'Username is required';
+    if (!formData.email.trim()) errors.email = 'Email is required';
+
+    // Password validation only for create, not edit
+    if (!isEdit) {
+      if (!formData.password.trim()) errors.password = 'Password is required';
+      if (formData.password.length < 8) errors.password = 'Password must be at least 8 characters';
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (formData.email && !emailRegex.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // CRUD operations
+  const handleSubmitCreate = async () => {
+    if (!validateForm()) return;
+
+    setSubmitting(true);
+    try {
+      await userService.createUser(formData);
+      showToast('User created successfully', 'success');
+      setCreateDialogOpen(false);
+      resetForm();
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to create user', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!validateForm(true)) return;
+
+    setSubmitting(true);
+    try {
+      console.log('Form data:', formData);
+      console.log('User ID:', formData.user_id);
+
+      // Transform frontend form data to backend expected format
+      const updateData = {};
+
+      // Combine first_name and last_name into full_name
+      if (formData.first_name || formData.last_name) {
+        const fullName = `${formData.first_name || ''} ${formData.last_name || ''}`.trim();
+        if (fullName) {
+          updateData.full_name = fullName;
+        }
+      }
+
+      if (formData.email) updateData.email = formData.email;
+      if (formData.role) updateData.role = formData.role;
+      if (formData.status) updateData.status = formData.status;
+
+      await userService.updateUser(formData.user_id, updateData);
+      showToast('User updated successfully', 'success');
+      setEditDialogOpen(false);
+      resetForm();
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to update user', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    setSubmitting(true);
+    try {
+      console.log('Deleting user ID:', userToDelete);
+      await userService.deleteUser(userToDelete);
+      showToast('User deleted successfully', 'success');
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      fetchUsers(); // Refresh the list
+    } catch (error) {
+      showToast(error.response?.data?.message || 'Failed to delete user', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Get role chip color
@@ -187,8 +337,7 @@ const UserListPage = () => {
   const getStatusChipColor = (status) => {
     const colors = {
       'active': 'success',
-      'inactive': 'default',
-      'suspended': 'error',
+      'deactivated': 'error',
     };
     return colors[status] || 'default';
   };
@@ -201,9 +350,9 @@ const UserListPage = () => {
 
   // Table columns configuration
   const columns = [
+    { id: 'username', label: 'Username', sortable: true },
     { id: 'full_name', label: 'Name', sortable: true },
     { id: 'email', label: 'Email', sortable: true },
-    { id: 'phone_number', label: 'Phone', sortable: false },
     { id: 'role', label: 'Role', sortable: true },
     { id: 'status', label: 'Status', sortable: false },
     { id: 'created_at', label: 'Joined', sortable: true },
@@ -300,6 +449,16 @@ const UserListPage = () => {
 
       {/* Filters and Search */}
       <Paper sx={{ p: 2, mb: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">Users</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateUser}
+          >
+            Create User
+          </Button>
+        </Box>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12} md={4}>
             <TextField
@@ -371,8 +530,8 @@ const UserListPage = () => {
 
       {/* Users Table */}
       <Paper>
-        <TableContainer>
-          <Table>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table sx={{ minWidth: 800 }}>
             <TableHead>
               <TableRow>
                 {columns.map((column) => (
@@ -394,7 +553,13 @@ const UserListPage = () => {
             </TableHead>
             <TableBody>
               {users.map((user) => (
-                <TableRow key={user.user_id} hover>
+                <TableRow key={user.id} hover>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                      {user.username}
+                    </Box>
+                  </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
@@ -405,12 +570,6 @@ const UserListPage = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <EmailIcon sx={{ mr: 1, color: 'text.secondary' }} />
                       {user.email || 'N/A'}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <PhoneIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                      {user.phone_number}
                     </Box>
                   </TableCell>
                   <TableCell>
@@ -480,27 +639,230 @@ const UserListPage = () => {
         </MenuItem>
       </Menu>
 
-      {/* Edit User Dialog - Placeholder */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-        <DialogTitle>Edit User</DialogTitle>
+      {/* Create User Dialog */}
+      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create New User</DialogTitle>
         <DialogContent>
-          <Typography>Edit user functionality will be implemented here.</Typography>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={formData.username}
+                onChange={(e) => handleFormChange('username', e.target.value)}
+                error={!!formErrors.username}
+                helperText={formErrors.username}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFormChange('email', e.target.value)}
+                error={!!formErrors.email}
+                helperText={formErrors.email}
+                required
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleFormChange('password', e.target.value)}
+                error={!!formErrors.password}
+                helperText={formErrors.password}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="First Name"
+                value={formData.first_name}
+                onChange={(e) => handleFormChange('first_name', e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Last Name"
+                value={formData.last_name}
+                onChange={(e) => handleFormChange('last_name', e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={formData.role}
+                  label="Role"
+                  onChange={(e) => handleFormChange('role', e.target.value)}
+                >
+                  {userRoles.map((role) => (
+                    <MenuItem key={role} value={role}>
+                      {role}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={formData.status}
+                  label="Status"
+                  onChange={(e) => handleFormChange('status', e.target.value)}
+                >
+                  {userStatuses.map((status) => (
+                    <MenuItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained">Save</Button>
+          <Button onClick={() => setCreateDialogOpen(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitCreate}
+            disabled={submitting}
+          >
+            {submitting ? 'Creating...' : 'Create User'}
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete User Dialog - Placeholder */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete User</DialogTitle>
+      {/* Edit User Dialog */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
-          <Typography>Are you sure you want to delete this user?</Typography>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={formData.username}
+                onChange={(e) => handleFormChange('username', e.target.value)}
+                error={!!formErrors.username}
+                helperText={formErrors.username}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleFormChange('email', e.target.value)}
+                error={!!formErrors.email}
+                helperText={formErrors.email}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="First Name"
+                value={formData.first_name}
+                onChange={(e) => handleFormChange('first_name', e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Last Name"
+                value={formData.last_name}
+                onChange={(e) => handleFormChange('last_name', e.target.value)}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Role</InputLabel>
+                <Select
+                  value={formData.role}
+                  label="Role"
+                  onChange={(e) => handleFormChange('role', e.target.value)}
+                >
+                  {userRoles.map((role) => (
+                    <MenuItem key={role} value={role}>
+                      {role}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={formData.status}
+                  label="Status"
+                  onChange={(e) => handleFormChange('status', e.target.value)}
+                >
+                  {userStatuses.map((status) => (
+                    <MenuItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" color="error">Delete</Button>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmitEdit}
+            disabled={submitting}
+          >
+            {submitting ? 'Updating...' : 'Update User'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => { setDeleteDialogOpen(false); setUserToDelete(null); }}>
+        <DialogTitle>Delete User</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to permanently delete this user? This action cannot be undone and will remove all associated data.
+          </Typography>
+          {selectedUser && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Typography variant="subtitle2">User to be deleted:</Typography>
+              <Typography><strong>Name:</strong> {selectedUser.full_name}</Typography>
+              <Typography><strong>Email:</strong> {selectedUser.email}</Typography>
+              <Typography><strong>Role:</strong> {selectedUser.role}</Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setDeleteDialogOpen(false); setUserToDelete(null); }} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleConfirmDelete}
+            disabled={submitting}
+          >
+            {submitting ? 'Deleting...' : 'Delete User'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

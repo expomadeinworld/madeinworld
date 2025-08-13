@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"user-service/internal/models"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // UserRepository handles user database operations
@@ -21,12 +23,22 @@ func NewUserRepository(db *Database) *UserRepository {
 	return &UserRepository{db: db}
 }
 
+// hashPassword hashes a password using bcrypt
+func hashPassword(password string) (string, error) {
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedBytes), nil
+}
+
 // GetUsers retrieves users with pagination, search, and filtering
 func (r *UserRepository) GetUsers(ctx context.Context, params models.UserSearchParams) (*models.UserListResponse, error) {
 	// Build the base query
 	baseQuery := `
-		SELECT u.id, u.username, u.email, u.password_hash, u.phone,
-		       u.first_name, u.last_name, u.created_at, u.updated_at,
+		SELECT u.id, u.username, u.email, u.password_hash,
+		       u.first_name, u.last_name, u.role, u.status, u.last_login,
+		       u.created_at, u.updated_at,
 		       COALESCE(order_stats.order_count, 0) as order_count,
 		       COALESCE(order_stats.total_spent, 0) as total_spent
 		FROM users u
@@ -49,8 +61,7 @@ func (r *UserRepository) GetUsers(ctx context.Context, params models.UserSearchP
 			(LOWER(u.username) LIKE LOWER($%d) OR
 			 LOWER(u.email) LIKE LOWER($%d) OR
 			 LOWER(u.first_name) LIKE LOWER($%d) OR
-			 LOWER(u.last_name) LIKE LOWER($%d) OR
-			 u.phone LIKE $%d)`, argIndex, argIndex, argIndex, argIndex, argIndex))
+			 LOWER(u.last_name) LIKE LOWER($%d))`, argIndex, argIndex, argIndex, argIndex))
 		args = append(args, "%"+params.Search+"%")
 		argIndex++
 	}
@@ -108,14 +119,17 @@ func (r *UserRepository) GetUsers(ctx context.Context, params models.UserSearchP
 	var users []models.User
 	for rows.Next() {
 		var user models.User
+		var lastLogin sql.NullTime
 		err := rows.Scan(
 			&user.ID,
 			&user.Username,
 			&user.Email,
 			&user.PasswordHash,
-			&user.Phone,
 			&user.FirstName,
 			&user.LastName,
+			&user.Role,
+			&user.Status,
+			&lastLogin,
 			&user.CreatedAt,
 			&user.UpdatedAt,
 			&user.OrderCount,
@@ -130,8 +144,11 @@ func (r *UserRepository) GetUsers(ctx context.Context, params models.UserSearchP
 		if user.FirstName != nil && user.LastName != nil {
 			user.FullName = *user.FirstName + " " + *user.LastName
 		}
-		user.Role = models.RoleCustomer // Default role since it's not in the schema
-		user.Status = user.GetUserStatus()
+
+		// Set last login if valid
+		if lastLogin.Valid {
+			user.LastLogin = &lastLogin.Time
+		}
 
 		users = append(users, user)
 	}
@@ -198,8 +215,9 @@ func (r *UserRepository) getUserCount(ctx context.Context, params models.UserSea
 // GetUserByID retrieves a user by ID with order statistics
 func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
 	query := `
-		SELECT u.id, u.username, u.email, u.password_hash, u.phone,
-		       u.first_name, u.last_name, u.created_at, u.updated_at,
+		SELECT u.id, u.username, u.email, u.password_hash,
+		       u.first_name, u.last_name, u.role, u.status, u.last_login,
+		       u.created_at, u.updated_at,
 		       COALESCE(order_stats.order_count, 0) as order_count,
 		       COALESCE(order_stats.total_spent, 0) as total_spent
 		FROM users u
@@ -215,14 +233,17 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*model
 	`
 
 	var user models.User
+	var lastLogin sql.NullTime
 	err := r.db.DB.QueryRowContext(ctx, query, userID).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
 		&user.PasswordHash,
-		&user.Phone,
 		&user.FirstName,
 		&user.LastName,
+		&user.Role,
+		&user.Status,
+		&lastLogin,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.OrderCount,
@@ -241,8 +262,55 @@ func (r *UserRepository) GetUserByID(ctx context.Context, userID string) (*model
 	if user.FirstName != nil && user.LastName != nil {
 		user.FullName = *user.FirstName + " " + *user.LastName
 	}
-	user.Role = models.RoleCustomer
-	user.Status = user.GetUserStatus()
+
+	// Set last login if valid
+	if lastLogin.Valid {
+		user.LastLogin = &lastLogin.Time
+	}
+
+	return &user, nil
+}
+
+// CreateUser creates a new user in the database
+func (r *UserRepository) CreateUser(ctx context.Context, req models.UserCreateRequest) (*models.User, error) {
+	// Hash the password
+	hashedPassword, err := hashPassword(req.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Insert user into database
+	var user models.User
+	query := `
+		INSERT INTO users (username, email, password_hash, first_name, last_name, role, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, username, email, password_hash, first_name, last_name, role, status, created_at, updated_at
+	`
+
+	err = r.db.DB.QueryRowContext(ctx, query,
+		req.Username, req.Email, hashedPassword,
+		req.FirstName, req.LastName, req.Role, req.Status).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.PasswordHash,
+		&user.FirstName,
+		&user.LastName,
+		&user.Role,
+		&user.Status,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// Set computed fields
+	user.FullName = user.Username
+	if user.FirstName != nil && user.LastName != nil {
+		user.FullName = *user.FirstName + " " + *user.LastName
+	}
 
 	return &user, nil
 }
@@ -254,20 +322,24 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, updates 
 	argIndex := 1
 
 	if updates.FullName != nil {
-		setParts = append(setParts, fmt.Sprintf("full_name = $%d", argIndex))
-		args = append(args, *updates.FullName)
-		argIndex++
+		// Split full name into first_name and last_name
+		names := strings.Fields(*updates.FullName)
+		if len(names) >= 1 {
+			setParts = append(setParts, fmt.Sprintf("first_name = $%d", argIndex))
+			args = append(args, names[0])
+			argIndex++
+		}
+		if len(names) >= 2 {
+			lastName := strings.Join(names[1:], " ")
+			setParts = append(setParts, fmt.Sprintf("last_name = $%d", argIndex))
+			args = append(args, lastName)
+			argIndex++
+		}
 	}
 
 	if updates.Email != nil {
 		setParts = append(setParts, fmt.Sprintf("email = $%d", argIndex))
 		args = append(args, *updates.Email)
-		argIndex++
-	}
-
-	if updates.PhoneNumber != nil {
-		setParts = append(setParts, fmt.Sprintf("phone_number = $%d", argIndex))
-		args = append(args, *updates.PhoneNumber)
 		argIndex++
 	}
 
@@ -277,9 +349,9 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, updates 
 		argIndex++
 	}
 
-	if updates.AvatarURL != nil {
-		setParts = append(setParts, fmt.Sprintf("avatar_url = $%d", argIndex))
-		args = append(args, *updates.AvatarURL)
+	if updates.Status != nil {
+		setParts = append(setParts, fmt.Sprintf("status = $%d", argIndex))
+		args = append(args, string(*updates.Status))
 		argIndex++
 	}
 
@@ -295,7 +367,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, updates 
 	// Add user ID for WHERE clause
 	args = append(args, userID)
 
-	query := fmt.Sprintf("UPDATE users SET %s WHERE user_id = $%d", strings.Join(setParts, ", "), argIndex)
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(setParts, ", "), argIndex)
 
 	result, err := r.db.DB.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -314,13 +386,30 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, updates 
 	return nil
 }
 
-// DeleteUser soft deletes a user (sets a deleted_at timestamp)
+// DeleteUser performs a hard delete of a user from the database
 func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
-	// For now, we'll just update the updated_at field to mark as "deleted"
-	// In a real implementation, you might add a deleted_at field to the schema
-	query := "UPDATE users SET updated_at = $1 WHERE user_id = $2"
+	// Start a transaction to ensure data consistency
+	tx, err := r.db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
 
-	result, err := r.db.DB.ExecContext(ctx, query, time.Now(), userID)
+	// Delete related data first (orders, carts, etc.)
+	// Delete user's carts
+	_, err = tx.ExecContext(ctx, "DELETE FROM carts WHERE user_id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user carts: %w", err)
+	}
+
+	// Delete user's orders
+	_, err = tx.ExecContext(ctx, "DELETE FROM orders WHERE user_id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user orders: %w", err)
+	}
+
+	// Finally delete the user
+	result, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -332,6 +421,11 @@ func (r *UserRepository) DeleteUser(ctx context.Context, userID string) error {
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("user not found")
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -416,7 +510,7 @@ func (r *UserRepository) GetUserAnalytics(ctx context.Context) (*models.UserAnal
 
 	// Calculate status distribution based on last login
 	analytics.UsersByStatus[models.StatusActive] = analytics.ActiveUsers
-	analytics.UsersByStatus[models.StatusInactive] = analytics.TotalUsers - analytics.ActiveUsers
+	analytics.UsersByStatus[models.StatusDeactivated] = analytics.TotalUsers - analytics.ActiveUsers
 
 	return analytics, nil
 }

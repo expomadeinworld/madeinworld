@@ -10,14 +10,67 @@ const api = axios.create({
   },
 });
 
-// Request interceptor for logging and auth (if needed in future)
+// Request interceptor for logging and auth
 api.interceptors.request.use(
   (config) => {
     console.log(`Making ${config.method?.toUpperCase()} request to: ${config.url}`);
+
+    // Add authorization header if token exists
+    const savedToken = localStorage.getItem('admin_token');
+    if (savedToken) {
+      try {
+        const tokenData = JSON.parse(savedToken);
+        if (tokenData.token) {
+          config.headers.Authorization = `Bearer ${tokenData.token}`;
+        }
+      } catch (error) {
+        console.error('Error parsing stored token:', error);
+      }
+    }
+
     return config;
   },
   (error) => {
     console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Helper function to get auth headers
+const getAuthHeaders = () => {
+  const savedToken = localStorage.getItem('admin_token');
+  if (savedToken) {
+    try {
+      const tokenData = JSON.parse(savedToken);
+      if (tokenData.token) {
+        return {
+          'X-Admin-Request': 'true',
+          'Authorization': `Bearer ${tokenData.token}`
+        };
+      }
+    } catch (error) {
+      console.error('Error parsing stored token:', error);
+    }
+  }
+  return {
+    'X-Admin-Request': 'true'
+  };
+};
+
+// Response interceptor for handling auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear invalid token
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+
+      // Redirect to login if not already there
+      if (window.location.hash !== '#/login') {
+        window.location.hash = '#/login';
+      }
+    }
     return Promise.reject(error);
   }
 );
@@ -67,10 +120,7 @@ export const userService = {
   getUsers: async (params = {}) => {
     const response = await axios.get('http://localhost:8083/api/admin/users', {
       params,
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800'
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -78,10 +128,15 @@ export const userService = {
   // Get single user by ID
   getUser: async (userId) => {
     const response = await axios.get(`http://localhost:8083/api/admin/users/${userId}`, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800'
-      }
+      headers: getAuthHeaders()
+    });
+    return response.data;
+  },
+
+  // Create new user
+  createUser: async (userData) => {
+    const response = await axios.post('http://localhost:8083/api/admin/users', userData, {
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -89,10 +144,7 @@ export const userService = {
   // Update user
   updateUser: async (userId, userData) => {
     const response = await axios.put(`http://localhost:8083/api/admin/users/${userId}`, userData, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800'
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -100,10 +152,7 @@ export const userService = {
   // Delete user
   deleteUser: async (userId) => {
     const response = await axios.delete(`http://localhost:8083/api/admin/users/${userId}`, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -111,10 +160,7 @@ export const userService = {
   // Update user status
   updateUserStatus: async (userId, statusData) => {
     const response = await axios.post(`http://localhost:8083/api/admin/users/${userId}/status`, statusData, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -122,10 +168,7 @@ export const userService = {
   // Get user analytics
   getUserAnalytics: async () => {
     const response = await axios.get('http://localhost:8083/api/admin/users/analytics', {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -133,10 +176,7 @@ export const userService = {
   // Bulk update users
   bulkUpdateUsers: async (bulkData) => {
     const response = await axios.post('http://localhost:8083/api/admin/users/bulk-update', bulkData, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -264,10 +304,7 @@ export const orderService = {
   getOrders: async (params = {}) => {
     const response = await axios.get('http://localhost:8082/api/admin/orders', {
       params,
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -275,10 +312,7 @@ export const orderService = {
   // Get single order by ID
   getOrder: async (orderId) => {
     const response = await axios.get(`http://localhost:8082/api/admin/orders/${orderId}`, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -289,10 +323,7 @@ export const orderService = {
       status,
       reason
     }, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -300,10 +331,7 @@ export const orderService = {
   // Delete/cancel order
   deleteOrder: async (orderId) => {
     const response = await axios.delete(`http://localhost:8082/api/admin/orders/${orderId}`, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -315,10 +343,7 @@ export const orderService = {
       status,
       reason
     }, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -331,10 +356,7 @@ export const orderService = {
 
     const response = await axios.get('http://localhost:8082/api/admin/orders/statistics', {
       params,
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -346,10 +368,7 @@ export const cartService = {
   getCarts: async (params = {}) => {
     const response = await axios.get('http://localhost:8082/api/admin/carts', {
       params,
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -357,10 +376,7 @@ export const cartService = {
   // Get single cart by ID
   getCart: async (cartId) => {
     const response = await axios.get(`http://localhost:8082/api/admin/carts/${cartId}`, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -371,10 +387,7 @@ export const cartService = {
       product_id: productId,
       quantity: quantity
     }, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -382,10 +395,7 @@ export const cartService = {
   // Delete cart
   deleteCart: async (cartId) => {
     const response = await axios.delete(`http://localhost:8082/api/admin/carts/${cartId}`, {
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },
@@ -398,10 +408,7 @@ export const cartService = {
 
     const response = await axios.get('http://localhost:8082/api/admin/carts/statistics', {
       params,
-      headers: {
-        'X-Admin-Request': 'true',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFkbWluQG1hZGVpbndvcmxkLmNvbSIsImV4cCI6MTc1MzU0NjgxNCwiaWF0IjoxNzUzNDYwNDE0LCJ1c2VyX2lkIjoiZDI4M2NhOTMtY2IzNy00Y2FmLWFkNGEtMjhiMzA4ZDM5YWMxIn0._eMrn6U7_5KoGbXdRAFhHhU3-L3hfbvuZirA2AQz800' // TODO: Replace with real auth
-      }
+      headers: getAuthHeaders()
     });
     return response.data;
   },

@@ -1,0 +1,17 @@
+# workers/edge-proxy/wrangler.toml
+name = "madeinworld-edge-proxy"
+main = "src/index.js"
+compatibility_date = "2024-05-12"
+
+# CORRECTED: No angle brackets
+account_id = "3ffb93116c8d5ab05b5d0f5482296954"
+
+# CORRECTED: Route syntax
+routes = [
+  { pattern = "device-api.expomadeinworld.com/*", zone_name = "expomadeinworld.com" }
+]
+
+[vars]
+# NOTE: This is a placeholder. You will replace this with the real URL
+# after you deploy your services with Terraform.
+CATALOG_SERVICE_URL = "placeholder.awsapprunner.com"
