@@ -51,8 +51,9 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       
-      // Call auth service login endpoint
-      const response = await axios.post(`${process.env.REACT_APP_AUTH_SERVICE_URL}/login`, {
+      // Call auth service login endpoint via Worker
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await axios.post(`${API_BASE}/api/auth/login`, {
         email,
         password
       });
@@ -104,7 +105,8 @@ export const AuthProvider = ({ children }) => {
 
   const refreshToken = async () => {
     try {
-      const response = await axios.post(`${process.env.REACT_APP_AUTH_SERVICE_URL}/refresh`, {}, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await axios.post(`${API_BASE}/api/auth/refresh`, {}, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

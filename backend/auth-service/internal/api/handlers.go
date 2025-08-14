@@ -212,6 +212,87 @@ func (h *Handler) generateJWTToken(userID string, email string) (string, error) 
 	return tokenString, nil
 }
 
+// Refresh issues a new JWT based on a valid existing token
+func (h *Handler) Refresh(c *gin.Context) {
+	// Extract Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "Authorization header required",
+			Message: "Please provide a valid authorization token",
+		})
+		return
+	}
+
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "Invalid authorization format",
+			Message: "Authorization header must be in format 'Bearer <token>'",
+		})
+		return
+	}
+	existingToken := parts[1]
+
+	// Parse existing token
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "your-secret-key-change-this-in-production"
+	}
+
+	token, err := jwt.Parse(existingToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "Invalid token",
+			Message: "The provided token is invalid or expired",
+		})
+		return
+	}
+
+	// Extract claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
+			Error:   "Invalid token claims",
+			Message: "Could not parse token claims",
+		})
+		return
+	}
+
+	userID, _ := claims["user_id"].(string)
+	email, _ := claims["email"].(string)
+
+	// Generate new token
+	newToken, err := h.generateJWTToken(userID, email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "Failed to generate token",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Calculate new expiration timestamp
+	expirationHours := 24
+	if expStr := os.Getenv("JWT_EXPIRATION_HOURS"); expStr != "" {
+		if exp, err := strconv.Atoi(expStr); err == nil {
+			expirationHours = exp
+		}
+	}
+	expiresAt := time.Now().Add(time.Duration(expirationHours) * time.Hour)
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":      newToken,
+		"expires_at": expiresAt,
+		"expiresAt":  expiresAt, // camelCase for Admin Panel compatibility
+	})
+}
+
 // isDuplicateEmailError checks if the error is due to duplicate email constraint
 func isDuplicateEmailError(err error) bool {
 	return strings.Contains(err.Error(), "duplicate key value violates unique constraint") &&

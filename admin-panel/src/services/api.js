@@ -1,14 +1,21 @@
 import axios from 'axios';
 
-// Create axios instance with base configuration
+// Single base URL via Cloudflare Worker
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+export const AUTH_BASE = `${API_BASE}/api/auth`;
+export const ADMIN_BASE = `${API_BASE}/api/admin`;
+export const CATALOG_BASE = `${API_BASE}/api/v1`;
+
+// Create axios instance with base configuration (Catalog API v1)
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api/v1',
+  baseURL: CATALOG_BASE,
   timeout: 10000, // 10 seconds timeout
   headers: {
     'Content-Type': 'application/json',
     'X-Admin-Request': 'true', // Mark all requests as admin requests
   },
 });
+
 
 // Request interceptor for logging and auth
 api.interceptors.request.use(
@@ -118,7 +125,7 @@ api.interceptors.response.use(
 export const userService = {
   // Get all users with pagination and filtering
   getUsers: async (params = {}) => {
-    const response = await axios.get('http://localhost:8083/api/admin/users', {
+    const response = await axios.get(`${ADMIN_BASE}/users`, {
       params,
       headers: getAuthHeaders()
     });
@@ -127,7 +134,7 @@ export const userService = {
 
   // Get single user by ID
   getUser: async (userId) => {
-    const response = await axios.get(`http://localhost:8083/api/admin/users/${userId}`, {
+    const response = await axios.get(`${ADMIN_BASE}/users/${userId}`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -135,7 +142,7 @@ export const userService = {
 
   // Create new user
   createUser: async (userData) => {
-    const response = await axios.post('http://localhost:8083/api/admin/users', userData, {
+    const response = await axios.post(`${ADMIN_BASE}/users`, userData, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -143,7 +150,7 @@ export const userService = {
 
   // Update user
   updateUser: async (userId, userData) => {
-    const response = await axios.put(`http://localhost:8083/api/admin/users/${userId}`, userData, {
+    const response = await axios.put(`${ADMIN_BASE}/users/${userId}`, userData, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -151,7 +158,7 @@ export const userService = {
 
   // Delete user
   deleteUser: async (userId) => {
-    const response = await axios.delete(`http://localhost:8083/api/admin/users/${userId}`, {
+    const response = await axios.delete(`${ADMIN_BASE}/users/${userId}`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -159,7 +166,7 @@ export const userService = {
 
   // Update user status
   updateUserStatus: async (userId, statusData) => {
-    const response = await axios.post(`http://localhost:8083/api/admin/users/${userId}/status`, statusData, {
+    const response = await axios.post(`${ADMIN_BASE}/users/${userId}/status`, statusData, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -167,7 +174,7 @@ export const userService = {
 
   // Get user analytics
   getUserAnalytics: async () => {
-    const response = await axios.get('http://localhost:8083/api/admin/users/analytics', {
+    const response = await axios.get(`${ADMIN_BASE}/users/analytics`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -175,7 +182,7 @@ export const userService = {
 
   // Bulk update users
   bulkUpdateUsers: async (bulkData) => {
-    const response = await axios.post('http://localhost:8083/api/admin/users/bulk-update', bulkData, {
+    const response = await axios.post(`${ADMIN_BASE}/users/bulk-update`, bulkData, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -302,7 +309,7 @@ export const healthService = {
 export const orderService = {
   // Get all orders with pagination and filtering
   getOrders: async (params = {}) => {
-    const response = await axios.get('http://localhost:8082/api/admin/orders', {
+    const response = await axios.get(`${ADMIN_BASE}/orders`, {
       params,
       headers: getAuthHeaders()
     });
@@ -311,7 +318,7 @@ export const orderService = {
 
   // Get single order by ID
   getOrder: async (orderId) => {
-    const response = await axios.get(`http://localhost:8082/api/admin/orders/${orderId}`, {
+    const response = await axios.get(`${ADMIN_BASE}/orders/${orderId}`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -319,7 +326,7 @@ export const orderService = {
 
   // Update order status
   updateOrderStatus: async (orderId, status, reason = '') => {
-    const response = await axios.put(`http://localhost:8082/api/admin/orders/${orderId}/status`, {
+    const response = await axios.put(`${ADMIN_BASE}/orders/${orderId}/status`, {
       status,
       reason
     }, {
@@ -330,7 +337,7 @@ export const orderService = {
 
   // Delete/cancel order
   deleteOrder: async (orderId) => {
-    const response = await axios.delete(`http://localhost:8082/api/admin/orders/${orderId}`, {
+    const response = await axios.delete(`${ADMIN_BASE}/orders/${orderId}`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -338,7 +345,7 @@ export const orderService = {
 
   // Bulk update orders
   bulkUpdateOrders: async (orderIds, status, reason = '') => {
-    const response = await axios.post('http://localhost:8082/api/admin/orders/bulk-update', {
+    const response = await axios.post(`${ADMIN_BASE}/orders/bulk-update`, {
       order_ids: orderIds,
       status,
       reason
@@ -354,7 +361,7 @@ export const orderService = {
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
 
-    const response = await axios.get('http://localhost:8082/api/admin/orders/statistics', {
+    const response = await axios.get(`${ADMIN_BASE}/orders/statistics`, {
       params,
       headers: getAuthHeaders()
     });
@@ -366,7 +373,7 @@ export const orderService = {
 export const cartService = {
   // Get all carts with pagination and filtering
   getCarts: async (params = {}) => {
-    const response = await axios.get('http://localhost:8082/api/admin/carts', {
+    const response = await axios.get(`${ADMIN_BASE}/carts`, {
       params,
       headers: getAuthHeaders()
     });
@@ -375,7 +382,7 @@ export const cartService = {
 
   // Get single cart by ID
   getCart: async (cartId) => {
-    const response = await axios.get(`http://localhost:8082/api/admin/carts/${cartId}`, {
+    const response = await axios.get(`${ADMIN_BASE}/carts/${cartId}`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -383,7 +390,7 @@ export const cartService = {
 
   // Update cart item quantity
   updateCartItem: async (cartId, productId, quantity) => {
-    const response = await axios.put(`http://localhost:8082/api/admin/carts/${cartId}/items`, {
+    const response = await axios.put(`${ADMIN_BASE}/carts/${cartId}/items`, {
       product_id: productId,
       quantity: quantity
     }, {
@@ -394,7 +401,7 @@ export const cartService = {
 
   // Delete cart
   deleteCart: async (cartId) => {
-    const response = await axios.delete(`http://localhost:8082/api/admin/carts/${cartId}`, {
+    const response = await axios.delete(`${ADMIN_BASE}/carts/${cartId}`, {
       headers: getAuthHeaders()
     });
     return response.data;
@@ -406,7 +413,7 @@ export const cartService = {
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
 
-    const response = await axios.get('http://localhost:8082/api/admin/carts/statistics', {
+    const response = await axios.get(`${ADMIN_BASE}/carts/statistics`, {
       params,
       headers: getAuthHeaders()
     });

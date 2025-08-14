@@ -1,32 +1,81 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const originalPath = url.pathname;
 
-    // Define routes to your backend services
-    const routes = {
-      '/api/auth':    env.AUTH_SERVICE_URL,
-      '/api/catalog': env.CATALOG_SERVICE_URL,
-      '/api/order':   env.ORDER_SERVICE_URL,
-      '/api/user':    env.USER_SERVICE_URL,
-      '/health':      env.CATALOG_SERVICE_URL, // Example: route /health to catalog
-    };
+    // Map path prefixes to services and support aliases
+    // - /api/auth           -> AUTH
+    // - /api/v1             -> CATALOG (native)
+    // - /api/cat            -> CATALOG (alias -> rewrite to /api/v1)
+    // - /api/cart, /api/orders -> ORDER
+    // - /api/admin          -> USER (native)
+    // - /api/users          -> USER (alias -> rewrite to /api/admin)
 
-    // Find the backend service that matches the start of the request path
-    const match = Object.keys(routes).find(path => url.pathname.startsWith(path));
+    // Helper: CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(request.headers.get('Origin')),
+      });
+    }
 
-    if (!match) {
+    let upstream = null;
+    let rewritePath = null;
+
+    if (originalPath.startsWith('/api/auth')) {
+      upstream = env.AUTH_SERVICE_URL;
+    } else if (originalPath.startsWith('/api/v1')) {
+      upstream = env.CATALOG_SERVICE_URL;
+    } else if (originalPath.startsWith('/api/cat')) {
+      upstream = env.CATALOG_SERVICE_URL;
+      rewritePath = originalPath.replace('/api/cat', '/api/v1');
+    } else if (originalPath.startsWith('/api/cart') || originalPath.startsWith('/api/orders')) {
+      upstream = env.ORDER_SERVICE_URL;
+    } else if (originalPath.startsWith('/api/admin')) {
+      upstream = env.USER_SERVICE_URL;
+    } else if (originalPath.startsWith('/api/users')) {
+      upstream = env.USER_SERVICE_URL;
+      rewritePath = originalPath.replace('/api/users', '/api/admin');
+    } else if (originalPath === '/health') {
+      upstream = env.CATALOG_SERVICE_URL;
+    }
+
+    if (!upstream) {
       return new Response('Not found', { status: 404 });
     }
 
-    // Set the hostname to the correct backend service
-    const upstreamHostname = new URL(routes[match]).hostname;
-    url.hostname = upstreamHostname;
+    const upstreamUrl = new URL(upstream);
+    url.hostname = upstreamUrl.hostname;
+    url.protocol = upstreamUrl.protocol;
+    url.port = upstreamUrl.port;
+    if (rewritePath) url.pathname = rewritePath;
 
-    const newRequest = new Request(url.toString(), request);
+    const headers = new Headers(request.headers);
+    headers.set('x-correlation-id', crypto.randomUUID());
 
-    // Add a correlation ID for easier debugging
-    newRequest.headers.set('x-correlation-id', crypto.randomUUID());
+    const resp = await fetch(new Request(url.toString(), {
+      method: request.method,
+      headers,
+      body: ['GET','HEAD'].includes(request.method) ? undefined : request.body,
+      redirect: 'follow',
+    }));
 
-    return fetch(newRequest);
+    // Add CORS headers on response
+    const responseHeaders = new Headers(resp.headers);
+    const origin = request.headers.get('Origin');
+    const cors = corsHeaders(origin);
+    cors.forEach((v, k) => responseHeaders.set(k, v));
+
+    return new Response(resp.body, { status: resp.status, headers: responseHeaders });
   }
 };
+
+function corsHeaders(origin) {
+  const h = new Headers();
+  h.set('Access-Control-Allow-Origin', origin || '*');
+  h.set('Vary', 'Origin');
+  h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  h.set('Access-Control-Allow-Headers', 'Origin,Content-Type,Accept,Authorization,X-Correlation-Id');
+  h.set('Access-Control-Allow-Credentials', 'true');
+  return h;
+}

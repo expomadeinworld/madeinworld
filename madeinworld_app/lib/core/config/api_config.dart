@@ -5,24 +5,27 @@
 library;
 
 class ApiConfig {
-  // Development/Testing Configuration
+  // Prefer compile-time environment override; fall back to sensible defaults.
+  // Usage:
+  // flutter run --dart-define=API_BASE=https://device-api.expomadeinworld.com
+  static const String _envBase = String.fromEnvironment('API_BASE');
+
+  // Defaults for convenience
   static const String _devBaseUrl = 'http://localhost:8080';
+  static const String _prodBaseUrl = 'https://device-api.expomadeinworld.com';
 
-  // Production Configuration (commented out for local development)
-  // Update this with your actual LoadBalancer URL after deployment
-  static const String _prodBaseUrl = 'https://api.expomadeinworld.com';
-
-  // Current environment - change this for different builds
-  // Set to true to use local development server (localhost:8080)
-  // Set to false to use production server (api.expomadeinworld.com)
+  // Toggle used only when API_BASE is not provided
   static const bool _isDevelopment = true;
-  
-  /// Get the current base URL based on environment
-  static String get baseUrl => _isDevelopment ? _devBaseUrl : _prodBaseUrl;
-  
+
+  /// Resolve base URL with this priority: API_BASE -> dev/prod toggle defaults
+  static String get baseUrl {
+    if (_envBase.isNotEmpty) return _envBase;
+    return _isDevelopment ? _devBaseUrl : _prodBaseUrl;
+  }
+
   /// API version path
   static const String apiVersion = '/api/v1';
-  
+
   /// Full API base URL with version
   static String get apiBaseUrl => '$baseUrl$apiVersion';
   

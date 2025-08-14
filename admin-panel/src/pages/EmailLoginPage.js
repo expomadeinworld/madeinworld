@@ -12,7 +12,6 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Chip,
   LinearProgress
 } from '@mui/material';
 import {
@@ -70,7 +69,8 @@ const EmailLoginPage = () => {
     setError('');
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_AUTH_SERVICE_URL}/send-verification`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await axios.post(`${API_BASE}/api/auth/admin/send-verification`, {
         email: email
       });
 
@@ -89,7 +89,8 @@ const EmailLoginPage = () => {
     setError('');
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_AUTH_SERVICE_URL}/verify-code`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await axios.post(`${API_BASE}/api/auth/admin/verify-code`, {
         email: email,
         code: code
       });

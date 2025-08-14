@@ -92,6 +92,9 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 		auth.POST("/send-verification", handler.UserSendVerification)
 		auth.POST("/verify-code", handler.UserVerifyCode)
 
+		// Token refresh
+		auth.POST("/refresh", handler.Refresh)
+
 		// Admin email verification routes (separate endpoints)
 		auth.POST("/admin/send-verification", handler.AdminSendVerification)
 		auth.POST("/admin/verify-code", handler.AdminVerifyCode)
