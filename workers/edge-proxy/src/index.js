@@ -22,7 +22,17 @@ export default {
     let upstream = null;
     let rewritePath = null;
 
-    if (originalPath.startsWith('/api/auth')) {
+    // Health path compatibility shims
+    if (originalPath === '/api/v1/health') {
+      upstream = env.CATALOG_SERVICE_URL;
+      rewritePath = '/health';
+    } else if (originalPath === '/api/auth/health') {
+      upstream = env.AUTH_SERVICE_URL;
+      rewritePath = '/health';
+    } else if (originalPath === '/api/admin/health') {
+      upstream = env.USER_SERVICE_URL;
+      rewritePath = '/health';
+    } else if (originalPath.startsWith('/api/auth')) {
       upstream = env.AUTH_SERVICE_URL;
     } else if (originalPath.startsWith('/api/v1')) {
       upstream = env.CATALOG_SERVICE_URL;
