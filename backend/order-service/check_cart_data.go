@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -65,8 +68,8 @@ func main() {
 	fmt.Println("\n=== Cart Table Structure ===")
 	structureQuery := `
 		SELECT column_name, data_type, is_nullable, column_default
-		FROM information_schema.columns 
-		WHERE table_name = 'carts' 
+		FROM information_schema.columns
+		WHERE table_name = 'carts'
 		ORDER BY ordinal_position;
 	`
 
@@ -97,7 +100,7 @@ func main() {
 	fmt.Println("\n=== Finding User Sole ===")
 	userQuery := `
 		SELECT id, email, username, first_name, last_name
-		FROM users 
+		FROM users
 		WHERE email = 'solesong2003@gmail.com' OR email ILIKE '%sole%'
 		LIMIT 5;
 	`

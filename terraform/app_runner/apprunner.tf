@@ -1,5 +1,12 @@
 # terraform/app_runner/apprunner.tf
 
+locals {
+  db_secret_base  = replace(var.secret_arn_db_password, "/:[^:]+::$/", "")
+  jwt_secret_base = replace(var.secret_arn_jwt_secret,  "/:[^:]+::$/", "")
+  ses_user_base   = replace(var.secret_arn_ses_user,     "/:[^:]+::$/", "")
+  ses_pass_base   = replace(var.secret_arn_ses_pass,     "/:[^:]+::$/", "")
+}
+
 data "aws_caller_identity" "current" {}
 
 # --- NEW: IAM ROLE FOR ECR ACCESS (ROLE A) ---
@@ -50,15 +57,15 @@ resource "aws_iam_policy" "apprunner_secrets_policy" {
     Version   = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = [ # This policy grants access to the specific secrets needed
-          var.secret_arn_db_password,
-          var.secret_arn_jwt_secret,
-          var.secret_arn_ses_user,
-          var.secret_arn_ses_pass,
+        Effect = "Allow"
+        Action = "secretsmanager:GetSecretValue"
+        Resource = [
+          local.db_secret_base,  var.secret_arn_db_password,
+          local.jwt_secret_base, var.secret_arn_jwt_secret,
+          local.ses_user_base,   var.secret_arn_ses_user,
+          local.ses_pass_base,   var.secret_arn_ses_pass,
         ]
-      },
+      }
     ]
   })
 }
@@ -95,7 +102,6 @@ resource "aws_apprunner_service" "main_services" {
 
   source_configuration {
     authentication_configuration {
-      # MODIFIED: Attaching the ECR Access Role
       access_role_arn = aws_iam_role.apprunner_ecr_access_role.arn
     }
     image_repository {
@@ -126,7 +132,6 @@ resource "aws_apprunner_service" "main_services" {
   }
 
   instance_configuration {
-    # MODIFIED: Attaching the Instance Role for Secrets access
     instance_role_arn = aws_iam_role.apprunner_instance_role.arn
   }
 

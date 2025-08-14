@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"time"
@@ -65,6 +66,16 @@ func NewDatabase() (*Database, error) {
 	poolConfig.MinConns = 5
 	poolConfig.MaxConnLifetime = time.Hour
 	poolConfig.MaxConnIdleTime = time.Minute * 30
+
+	origHost := poolConfig.ConnConfig.Host
+
+	poolConfig.ConnConfig.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
+		d := &net.Dialer{}
+		return d.DialContext(ctx, "tcp4", address)
+	}
+	if poolConfig.ConnConfig.TLSConfig != nil && poolConfig.ConnConfig.TLSConfig.ServerName == "" {
+		poolConfig.ConnConfig.TLSConfig.ServerName = origHost
+	}
 
 	// Create connection pool
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)

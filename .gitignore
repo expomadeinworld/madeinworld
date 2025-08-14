@@ -169,6 +169,13 @@ jspm_packages/
 /terraform/.terraform/
 /terraform/.terraform.lock.hcl
 
+# Terraform local state and variables
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+
 # Terraform variable files (may contain sensitive data)
 /terraform/*.tfvars
 /terraform/*.tfvars.json

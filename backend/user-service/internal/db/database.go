@@ -1,13 +1,30 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"net"
 	"os"
+	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
+
+// Force IPv4 dialing for lib/pq connections via a custom Dialer
+// This preserves the DNS hostname in config while ensuring tcp4 is used
+type ipv4Dialer struct{}
+
+func (ipv4Dialer) Dial(network, address string) (net.Conn, error) {
+	return (&net.Dialer{}).Dial("tcp4", address)
+}
+
+func (ipv4Dialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return (&net.Dialer{}).DialContext(ctx, "tcp4", address)
+}
 
 // Database represents the database connection
 type Database struct {
@@ -56,10 +73,12 @@ func NewDatabase() (*Database, error) {
 	}
 
 	// Open database connection
-	db, err := sql.Open("postgres", connStr)
+	connector, err := pq.NewConnector(connStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
+		return nil, fmt.Errorf("failed to build pq connector: %w", err)
 	}
+	connector.Dialer(ipv4Dialer{})
+	db := sql.OpenDB(connector)
 
 	// Test the connection
 	if err := db.Ping(); err != nil {

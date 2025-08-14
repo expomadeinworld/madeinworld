@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -52,7 +55,7 @@ func main() {
 
 	// Test connection
 	fmt.Println("Attempting to connect...")
-	
+
 	poolConfig, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		log.Fatalf("Failed to parse database config: %v", err)
@@ -77,17 +80,17 @@ func main() {
 	// Test required tables
 	fmt.Println("\nChecking required tables...")
 	requiredTables := []string{"users", "products", "carts", "orders", "cart_items", "order_items"}
-	
+
 	for _, table := range requiredTables {
 		var exists bool
 		query := `
 			SELECT EXISTS (
-				SELECT FROM information_schema.tables 
-				WHERE table_schema = 'public' 
+				SELECT FROM information_schema.tables
+				WHERE table_schema = 'public'
 				AND table_name = $1
 			);
 		`
-		
+
 		err := pool.QueryRow(ctx, query, table).Scan(&exists)
 		if err != nil {
 			fmt.Printf("❌ Error checking table %s: %v\n", table, err)
@@ -103,13 +106,13 @@ func main() {
 	var hasColumn bool
 	columnQuery := `
 		SELECT EXISTS (
-			SELECT FROM information_schema.columns 
-			WHERE table_schema = 'public' 
-			AND table_name = 'carts' 
+			SELECT FROM information_schema.columns
+			WHERE table_schema = 'public'
+			AND table_name = 'carts'
 			AND column_name = 'mini_app_type'
 		);
 	`
-	
+
 	err = pool.QueryRow(ctx, columnQuery).Scan(&hasColumn)
 	if err != nil {
 		fmt.Printf("❌ Error checking mini_app_type column: %v\n", err)
@@ -144,7 +147,7 @@ func maskConnectionString(connStr string) string {
 	if !contains(connStr, "password=") {
 		return connStr
 	}
-	
+
 	// Find password part and mask it
 	parts := []string{}
 	for _, part := range splitString(connStr, " ") {
@@ -158,8 +161,8 @@ func maskConnectionString(connStr string) string {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr || 
-		   len(s) > len(substr) && findSubstring(s, substr) >= 0
+	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr ||
+		len(s) > len(substr) && findSubstring(s, substr) >= 0
 }
 
 func findSubstring(s, substr string) int {
@@ -179,10 +182,10 @@ func splitString(s, sep string) []string {
 	if s == "" {
 		return []string{}
 	}
-	
+
 	var result []string
 	start := 0
-	
+
 	for i := 0; i <= len(s)-len(sep); i++ {
 		if s[i:i+len(sep)] == sep {
 			result = append(result, s[start:i])
@@ -201,7 +204,7 @@ func joinString(parts []string, sep string) string {
 	if len(parts) == 1 {
 		return parts[0]
 	}
-	
+
 	result := parts[0]
 	for i := 1; i < len(parts); i++ {
 		result += sep + parts[i]
