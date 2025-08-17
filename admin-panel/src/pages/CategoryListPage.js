@@ -137,14 +137,15 @@ const CategoryListPage = () => {
     try {
       setLoading(true);
       const currentMiniApp = miniAppTabs[currentTab];
-      let url = `http://localhost:8080/api/v1/categories?mini_app_type=${currentMiniApp.value}&include_subcategories=true&include_store_info=true`;
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      let url = `${API_BASE}/api/v1/categories?mini_app_type=${currentMiniApp.value}&include_subcategories=true&include_store_info=true`;
 
       // Add store filter for location-based mini-apps
       if (currentMiniApp.requiresStore && selectedStore) {
         url += `&store_id=${selectedStore.id}`;
       }
 
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: { 'X-Admin-Request': 'true' } });
       if (response.ok) {
         const data = await response.json();
         // Ensure data is always an array
@@ -170,7 +171,8 @@ const CategoryListPage = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:8080/api/v1/stores?mini_app_type=${currentMiniApp.value}`);
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/stores?mini_app_type=${currentMiniApp.value}`);
       if (response.ok) {
         const data = await response.json();
         // Ensure data is always an array
@@ -207,7 +209,8 @@ const CategoryListPage = () => {
         store_id: currentMiniApp.requiresStore ? selectedStore?.id : null,
       };
 
-      const response = await fetch('http://localhost:8080/api/v1/categories', {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -566,7 +569,7 @@ const CategoryListPage = () => {
                       <MenuItem key={store.id} value={store.id}>
                         <Box display="flex" alignItems="center" width="100%">
                           <Avatar
-                            src={store.image_url ? `http://localhost:8080${store.image_url}` : ''}
+                            src={store.image_url ? `${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}${store.image_url}` : ''}
                             sx={{
                               width: 32,
                               height: 32,

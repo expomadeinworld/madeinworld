@@ -259,7 +259,8 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
   // Load existing product images when editing
   const loadProductImages = async (productId) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/products/${productId}/images`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`, {
         method: 'GET',
         headers: {
           'X-Admin-Request': 'true',
@@ -329,7 +330,8 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
         formData.append('images', file);
       });
 
-      const response = await fetch(`http://localhost:8080/api/v1/products/${productId}/images`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`, {
         method: 'POST',
         headers: {
           'X-Admin-Request': 'true',
@@ -358,7 +360,8 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
     if (!productId) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/products/${productId}/images/${imageId}`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images/${imageId}`, {
         method: 'DELETE',
         headers: {
           'X-Admin-Request': 'true',
@@ -387,7 +390,8 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
         display_order: index + 1,
       }));
 
-      const response = await fetch(`http://localhost:8080/api/v1/products/${productId}/images/reorder`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images/reorder`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -413,7 +417,8 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
     if (!productId) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/products/${productId}/images/${imageId}/primary`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images/${imageId}/primary`, {
         method: 'PUT',
         headers: {
           'X-Admin-Request': 'true',

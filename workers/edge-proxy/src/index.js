@@ -41,7 +41,14 @@ export default {
       rewritePath = originalPath.replace('/api/cat', '/api/v1');
     } else if (originalPath.startsWith('/api/cart') || originalPath.startsWith('/api/orders')) {
       upstream = env.ORDER_SERVICE_URL;
+    } else if (originalPath.startsWith('/api/admin/orders') || originalPath.startsWith('/api/admin/carts')) {
+      // Route admin orders and carts to the Order Service
+      upstream = env.ORDER_SERVICE_URL;
+    } else if (originalPath.startsWith('/api/admin/users')) {
+      // Route admin user management to the User Service
+      upstream = env.USER_SERVICE_URL;
     } else if (originalPath.startsWith('/api/admin')) {
+      // Default admin routes go to the User Service
       upstream = env.USER_SERVICE_URL;
     } else if (originalPath.startsWith('/api/users')) {
       upstream = env.USER_SERVICE_URL;

@@ -38,6 +38,14 @@ import {
 } from '@mui/icons-material';
 import { useToast } from '../contexts/ToastContext';
 
+// API base for production routing via Cloudflare Worker
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+const getImageUrl = (url) => {
+  if (!url) return '';
+  return url.startsWith('http') ? url : `${API_BASE}${url}`;
+};
+
+
 const StoreListPage = () => {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,8 +79,7 @@ const StoreListPage = () => {
   const fetchStores = async () => {
     try {
       setLoading(true);
-      const base = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
-      const response = await fetch(`${base}/api/v1/stores`);
+      const response = await fetch(`${API_BASE}/api/v1/stores`);
       if (response.ok) {
         const data = await response.json();
         setStores(data);
@@ -89,7 +96,7 @@ const StoreListPage = () => {
 
   const handleCreateStore = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/v1/stores', {
+      const response = await fetch(`${API_BASE}/api/v1/stores`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,7 +124,7 @@ const StoreListPage = () => {
 
   const handleUpdateStore = async () => {
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/stores/${editingStore.id}`, {
+      const response = await fetch(`${API_BASE}/api/v1/stores/${editingStore.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -146,7 +153,7 @@ const StoreListPage = () => {
   const handleDeleteStore = async (storeId) => {
     if (window.confirm('Are you sure you want to delete this store?')) {
       try {
-        const response = await fetch(`http://localhost:8080/api/v1/stores/${storeId}`, {
+        const response = await fetch(`${API_BASE}/api/v1/stores/${storeId}`, {
           method: 'DELETE',
         });
 
@@ -168,7 +175,7 @@ const StoreListPage = () => {
       const formData = new FormData();
       formData.append('image', file);
 
-      const response = await fetch(`http://localhost:8080/api/v1/stores/${storeId}/image`, {
+      const response = await fetch(`${API_BASE}/api/v1/stores/${storeId}/image`, {
         method: 'POST',
         body: formData,
       });
@@ -265,7 +272,7 @@ const StoreListPage = () => {
                   <CardContent>
                     <Box display="flex" alignItems="center" mb={2}>
                       <Avatar
-                        src={store.image_url ? `http://localhost:8080${store.image_url}` : ''}
+                        src={store.image_url ? getImageUrl(store.image_url) : ''}
                         sx={{
                           width: 56,
                           height: 56,
@@ -282,10 +289,10 @@ const StoreListPage = () => {
                         <Chip
                           label={store.type}
                           size="small"
-                          sx={{ 
-                            bgcolor: typeInfo.color, 
+                          sx={{
+                            bgcolor: typeInfo.color,
                             color: 'white',
-                            mb: 0.5 
+                            mb: 0.5
                           }}
                         />
                         <Typography variant="caption" display="block" color="text.secondary">
@@ -428,10 +435,10 @@ const StoreListPage = () => {
                         <Chip
                           label={option.label}
                           size="small"
-                          sx={{ 
-                            bgcolor: option.color, 
+                          sx={{
+                            bgcolor: option.color,
                             color: 'white',
-                            mr: 1 
+                            mr: 1
                           }}
                         />
                         <Typography variant="caption" color="text.secondary">

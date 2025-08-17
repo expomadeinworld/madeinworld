@@ -334,7 +334,8 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
   // Load product images
   const loadProductImages = async (productId) => {
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/products/${productId}/images`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`, {
         headers: {
           'X-Admin-Request': 'true',
         },
