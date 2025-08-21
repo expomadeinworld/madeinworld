@@ -20,19 +20,23 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
-	// Initialize database connection
+	// Initialize database connection (non-fatal; allow process to start for /live)
 	database, err := db.NewDatabase()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("[WARN] Database initialization failed at startup: %v", err)
 	}
-	defer database.Close()
-
-	// Initialize user verification schema
-	if err := database.InitUserSchema(context.Background()); err != nil {
-		log.Fatalf("Failed to initialize user schema: %v", err)
+	if database != nil {
+		defer database.Close()
 	}
 
-	// Initialize handlers
+	// Initialize user verification schema (best effort)
+	if database != nil {
+		if err := database.InitUserSchema(context.Background()); err != nil {
+			log.Printf("[WARN] Failed to initialize user schema: %v", err)
+		}
+	}
+
+	// Initialize handlers (DB may be nil; /ready will report accordingly)
 	handler := api.NewHandler(database)
 
 	// Initialize cleanup service (runs every 30 minutes)
@@ -83,8 +87,8 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	router.GET("/live", func(c *gin.Context) { c.Status(200) })
 	// /ready performs DB checks (what /health used to do)
 	router.GET("/ready", handler.Health)
-	// Keep /health for backward compatibility (same as /ready)
-	router.GET("/health", handler.Health)
+	// Keep /health for App Runner legacy health checks, but make it liveness-only
+	router.GET("/health", func(c *gin.Context) { c.Status(200) })
 
 	// API routes
 	auth := router.Group("/api/auth")
