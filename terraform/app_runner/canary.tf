@@ -45,6 +45,9 @@ resource "aws_synthetics_canary" "auth_ready" {
   name                 = "${var.project}-auth-ready"
   artifact_s3_location = "s3://${aws_s3_bucket.synthetics_artifacts.bucket}"
   execution_role_arn   = aws_iam_role.synthetics_role.arn
+  handler              = "index.handler"
+  zip_file             = data.archive_file.auth_ready_zip.output_path
+
   runtime_version      = "syn-nodejs-puppeteer-6.2"
   start_canary         = true
   schedule {
@@ -53,7 +56,7 @@ resource "aws_synthetics_canary" "auth_ready" {
 
   run_config {
     environment_variables = {
-      TARGET_URL = "${aws_apprunner_service.main_services[\"auth-service\"].service_url}/ready"
+      TARGET_URL = "${aws_apprunner_service.main_services["auth-service"].service_url}/ready"
     }
   }
 
