@@ -18,6 +18,23 @@ if [ -z "${DB_PASSWORD}" ]; then
   exit 1
 fi
 
+# Attempt to fetch DB_PASSWORD from AWS Secrets Manager if not present
+# Requires AWS CLI configured with permissions to GetSecretValue
+if [ -z "${DB_PASSWORD}" ]; then
+  if [ -n "${DB_PASSWORD_SECRET_ARN}" ]; then
+    log "Fetching DB password from Secrets Manager..."
+    DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id "$DB_PASSWORD_SECRET_ARN" --query SecretString --output text 2>/dev/null)
+    if [ -z "$DB_PASSWORD" ] || [ "$DB_PASSWORD" = "null" ]; then
+      error "Failed to retrieve DB password from Secrets Manager. Set DB_PASSWORD or ensure permissions."
+      exit 1
+    fi
+  else
+    error "DB_PASSWORD not set and DB_PASSWORD_SECRET_ARN not provided."
+    echo "Usage: DB_PASSWORD=... ./scripts/upload_images_to_s3.sh OR DB_PASSWORD_SECRET_ARN=... ./scripts/upload_images_to_s3.sh" >&2
+    exit 1
+  fi
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -58,14 +75,14 @@ if [ -d "$LOCAL_UPLOADS_DIR/products" ]; then
             filename=$(basename "$image")
             # Extract product ID from filename (assuming format: productid_timestamp_originalname)
             product_id=$(echo "$filename" | cut -d'_' -f1)
-            
+
             s3_key="products/$product_id/$(date +%s)000_$filename"
             s3_url="https://$BUCKET_NAME.s3.$REGION.amazonaws.com/$s3_key"
-            
+
             log "Uploading $filename to S3..."
             if aws s3 cp "$image" "s3://$BUCKET_NAME/$s3_key" --region "$REGION"; then
                 success "Uploaded $filename"
-                
+
                 # Update database with new S3 URL
                 old_url="https://device-api.expomadeinworld.com/uploads/products/$filename"
                 log "Updating database URL for $filename..."
@@ -86,11 +103,11 @@ if [ -d "$LOCAL_UPLOADS_DIR/stores" ]; then
             filename=$(basename "$image")
             s3_key="stores/$filename"
             s3_url="https://$BUCKET_NAME.s3.$REGION.amazonaws.com/$s3_key"
-            
+
             log "Uploading $filename to S3..."
             if aws s3 cp "$image" "s3://$BUCKET_NAME/$s3_key" --region "$REGION"; then
                 success "Uploaded $filename"
-                
+
                 # Update database with new S3 URL
                 old_url="/uploads/stores/$filename"
                 log "Updating database URL for $filename..."
@@ -111,11 +128,11 @@ if [ -d "$LOCAL_UPLOADS_DIR/subcategories" ]; then
             filename=$(basename "$image")
             s3_key="subcategories/$filename"
             s3_url="https://$BUCKET_NAME.s3.$REGION.amazonaws.com/$s3_key"
-            
+
             log "Uploading $filename to S3..."
             if aws s3 cp "$image" "s3://$BUCKET_NAME/$s3_key" --region "$REGION"; then
                 success "Uploaded $filename"
-                
+
                 # Update database with new S3 URL
                 old_url="/uploads/subcategories/$filename"
                 log "Updating database URL for $filename..."
