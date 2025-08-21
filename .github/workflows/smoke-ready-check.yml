@@ -5,16 +5,43 @@ on:
     workflows: ["Deploy Services to App Runner"]
     types: ["completed"]
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   auth-ready-check:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Resolve current auth-service URL
+        id: resolve
+        run: |
+          set -e
+          URL=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='madeinworld-auth-service-dev'].ServiceUrl | [0]" --output text)
+          if [ -z "$URL" ] || [ "$URL" = "None" ]; then
+            echo "Failed to resolve auth-service URL" >&2
+            exit 1
+          fi
+          echo "service_url=$URL" >> $GITHUB_OUTPUT
+          echo "Resolved URL: $URL"
+
       - name: Wait for auth-service to be live
+        env:
+          URL: ${{ steps.resolve.outputs.service_url }}
         run: |
           set -e
           for i in {1..20}; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" https://cmcqqznz9g.eu-central-1.awsapprunner.com/live || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/live" || true)
             if [ "$code" = "200" ]; then
               echo "Auth service live"
               exit 0
@@ -24,10 +51,13 @@ jobs:
           done
           echo "Auth service /live not ready"
           exit 1
+
       - name: Check /ready (DB ping)
+        env:
+          URL: ${{ steps.resolve.outputs.service_url }}
         run: |
           set -e
-          code=$(curl -s -o /dev/null -w "%{http_code}" https://cmcqqznz9g.eu-central-1.awsapprunner.com/ready || true)
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/ready" || true)
           if [ "$code" != "200" ]; then
             echo "Auth service /ready failed with HTTP $code"
             exit 1
