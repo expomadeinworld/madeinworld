@@ -9,10 +9,14 @@ set -e
 BUCKET_NAME="madeinworld-product-images-admin"
 REGION="eu-central-1"
 LOCAL_UPLOADS_DIR="backend/catalog-service/uploads"
-DB_HOST="ep-super-tooth-a2qtgrry.eu-central-1.aws.neon.tech"
-DB_USER="neondb_owner"
-DB_NAME="neondb"
-DB_PASSWORD="npg_3yJc0fholOrH"
+DB_HOST=${DB_HOST:-"ep-super-tooth-a2qtgrry.eu-central-1.aws.neon.tech"}
+DB_USER=${DB_USER:-"neondb_owner"}
+DB_NAME=${DB_NAME:-"neondb"}
+# IMPORTANT: Do not hardcode passwords. Provide DB_PASSWORD via environment or AWS Secrets Manager.
+if [ -z "${DB_PASSWORD}" ]; then
+  echo "ERROR: DB_PASSWORD not set. Export DB_PASSWORD or use: DB_PASSWORD=\"...\" $0" >&2
+  exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
