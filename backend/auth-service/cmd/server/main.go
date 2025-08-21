@@ -78,7 +78,12 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
 
-	// Health check endpoint
+	// Liveness and readiness endpoints
+	// /live returns 200 if the process is running (no DB checks)
+	router.GET("/live", func(c *gin.Context) { c.Status(200) })
+	// /ready performs DB checks (what /health used to do)
+	router.GET("/ready", handler.Health)
+	// Keep /health for backward compatibility (same as /ready)
 	router.GET("/health", handler.Health)
 
 	// API routes

@@ -27,10 +27,15 @@ import {
   Store as StoreIcon,
 } from '@mui/icons-material';
 import { productService } from '../services/api';
+
 import ProductForm from '../components/ProductForm';
 import ProductDetailsModal from '../components/ProductDetailsModal';
 import DeleteProductDialog from '../components/DeleteProductDialog';
 import ProductStatusToggle from '../components/ProductStatusToggle';
+
+// Resolve image URLs via Worker
+const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+const toImg = (url) => (url && !url.startsWith('http') ? `${API_BASE}${url}` : url || '');
 
 const ProductListPage = () => {
   const [products, setProducts] = useState([]);
@@ -287,7 +292,7 @@ const ProductListPage = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                           <Avatar
-                            src={product.image_urls?.[0]}
+                            src={toImg(product.image_urls?.[0])}
                             alt={product.title}
                             sx={{
                               width: 48,
@@ -295,6 +300,7 @@ const ProductListPage = () => {
                               filter: product.is_active ? 'none' : 'grayscale(50%)'
                             }}
                             variant="rounded"
+                            imgProps={{ onError: (e) => { e.currentTarget.src=''; } }}
                           >
                             <StoreIcon />
                           </Avatar>

@@ -11,8 +11,7 @@ const api = axios.create({
   baseURL: CATALOG_BASE,
   timeout: 10000, // 10 seconds timeout
   headers: {
-    'Content-Type': 'application/json',
-    'X-Admin-Request': 'true', // Mark all requests as admin requests
+    'Content-Type': 'application/json'
   },
 });
 

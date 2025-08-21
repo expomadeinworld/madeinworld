@@ -1232,8 +1232,12 @@ func (h *Handler) uploadToLocal(productID int, fileHeader *multipart.FileHeader,
 		return "", fmt.Errorf("failed to save file: %w", err)
 	}
 
-	// Return URL for local development
-	imageURL := fmt.Sprintf("http://localhost:8080/uploads/products/%s", filename)
+	// Return URL - use environment variable for base URL or default to localhost for development
+	baseURL := os.Getenv("SERVICE_BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+	imageURL := fmt.Sprintf("%s/uploads/products/%s", baseURL, filename)
 	return imageURL, nil
 }
 
@@ -2056,8 +2060,12 @@ func (h *Handler) UploadProductImages(c *gin.Context) {
 			return
 		}
 
-		// Create image URL
-		imageURL := fmt.Sprintf("http://localhost:8080/%s", uploadPath)
+		// Create image URL - use environment variable for base URL or default to localhost for development
+		baseURL := os.Getenv("SERVICE_BASE_URL")
+		if baseURL == "" {
+			baseURL = "http://localhost:8080"
+		}
+		imageURL := fmt.Sprintf("%s/%s", baseURL, uploadPath)
 
 		// Get next display order
 		displayOrder := i + 1

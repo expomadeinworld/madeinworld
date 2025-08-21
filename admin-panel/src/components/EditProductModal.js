@@ -335,11 +335,7 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
   const loadProductImages = async (productId) => {
     try {
       const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
-      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`, {
-        headers: {
-          'X-Admin-Request': 'true',
-        },
-      });
+      const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`);
 
       if (response.ok) {
         const images = await response.json();
@@ -365,11 +361,9 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
         formData.append('images', file);
       });
 
-      const response = await fetch(`http://localhost:8080/api/v1/products/${product.id}/images`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${product.id}/images`, {
         method: 'POST',
-        headers: {
-          'X-Admin-Request': 'true',
-        },
         body: formData,
       });
 
@@ -393,11 +387,9 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
     if (!product?.id) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/products/${product.id}/images/${imageId}`, {
-        method: 'DELETE',
-        headers: {
-          'X-Admin-Request': 'true',
-        },
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${product.id}/images/${imageId}`, {
+        method: 'DELETE'
       });
 
       if (!response.ok) {
@@ -422,11 +414,11 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
         display_order: index + 1,
       }));
 
-      const response = await fetch(`http://localhost:8080/api/v1/products/${product.id}/images/reorder`, {
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${product.id}/images/reorder`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Request': 'true',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ image_orders: imageOrders }),
       });
@@ -448,11 +440,9 @@ const EditProductModal = ({ open, onClose, product, onProductUpdated }) => {
     if (!product?.id) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/v1/products/${product.id}/images/${imageId}/primary`, {
-        method: 'PUT',
-        headers: {
-          'X-Admin-Request': 'true',
-        },
+      const API_BASE = process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com';
+      const response = await fetch(`${API_BASE}/api/v1/products/${product.id}/images/${imageId}/primary`, {
+        method: 'PUT'
       });
 
       if (!response.ok) {
