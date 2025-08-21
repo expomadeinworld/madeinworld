@@ -66,7 +66,9 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
 
-	// Health check endpoint
+	// Health and readiness endpoints
+	router.GET("/live", func(c *gin.Context) { c.Status(200) })
+	router.GET("/ready", handler.Health)
 	router.GET("/health", handler.Health)
 
 	// API routes with JWT protection

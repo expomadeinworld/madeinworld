@@ -55,7 +55,9 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	router.Use(gin.Recovery())
 	router.Use(api.CORSMiddleware())
 
-	// Health check endpoint (no auth required)
+	// Health and readiness endpoints (no auth required)
+	router.GET("/live", func(c *gin.Context) { c.Status(200) })
+	router.GET("/ready", handler.Health)
 	router.GET("/health", handler.Health)
 
 	// Admin API routes with authentication and admin middleware

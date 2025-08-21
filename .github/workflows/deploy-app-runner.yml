@@ -40,3 +40,16 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/${{ matrix.service }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Force App Runner deployment
+        env:
+          SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
+        run: |
+          set -e
+          ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
+          if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
+            echo "No App Runner service found for $SERVICE_NAME" >&2
+            exit 1
+          fi
+          aws apprunner start-deployment --service-arn "$ARN"
+          echo "Triggered deployment for $SERVICE_NAME"

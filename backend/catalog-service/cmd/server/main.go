@@ -69,7 +69,9 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	// Serve uploaded files for local development
 	router.Static("/uploads", "./uploads")
 
-	// Health check endpoint
+	// Health and readiness endpoints
+	router.GET("/live", func(c *gin.Context) { c.Status(200) })
+	router.GET("/ready", handler.Health)
 	router.GET("/health", handler.Health)
 
 	// API routes

@@ -45,46 +45,21 @@ resource "aws_synthetics_canary" "auth_ready" {
   name                 = "${var.project}-auth-ready"
   artifact_s3_location = "s3://${aws_s3_bucket.synthetics_artifacts.bucket}"
   execution_role_arn   = aws_iam_role.synthetics_role.arn
-  handler              = "index.handler"
   runtime_version      = "syn-nodejs-puppeteer-6.2"
   start_canary         = true
   schedule {
     expression = var.canary_schedule_expression
   }
 
-  code {
-    handler = "index.handler"
-    script  = <<-EOT
-      const synthetics = require('Synthetics');
-      const log = require('SyntheticsLogger');
-      const https = require('https');
-
-      const apiCanaryBlueprint = async function () {
-        const url = process.env.TARGET_URL;
-        const u = new URL(url);
-        const options = {
-          hostname: u.hostname,
-          path: u.pathname + (u.search || ''),
-          method: 'GET',
-          port: 443,
-          protocol: 'https:'
-        };
-        await synthetics.executeHttpStep('auth-ready', options, async (res) => {
-          if (res.statusCode !== 200) {
-            throw new Error('Non-200 status: ' + res.statusCode);
-          }
-        });
-      };
-
-      exports.handler = async () => {
-        return await apiCanaryBlueprint();
-      };
-    EOT
+  run_config {
+    environment_variables = {
+      TARGET_URL = "${aws_apprunner_service.main_services[\"auth-service\"].service_url}/ready"
+    }
   }
 
-  environment_variables = {
-    TARGET_URL = "${aws_apprunner_service.main_services["auth-service"].service_url}/ready"
-  }
+  s3_bucket  = aws_s3_bucket.synthetics_artifacts.bucket
+  s3_key     = aws_s3_object.canary_code.key
+  s3_version = null
 }
 
 variable "canary_schedule_expression" {
