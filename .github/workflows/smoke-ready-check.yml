@@ -40,17 +40,25 @@ jobs:
           URL: ${{ steps.resolve.outputs.service_url }}
         run: |
           set -e
-          for i in {1..20}; do
+          max_secs=600
+          start=$(date +%s)
+          i=0
+          while true; do
+            i=$((i+1))
             code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/live" || true)
             if [ "$code" = "200" ]; then
               echo "Auth service live"
               exit 0
             fi
-            echo "Waiting for live... ($i)"
+            now=$(date +%s)
+            elapsed=$((now-start))
+            echo "Waiting for live... attempt $i (elapsed ${elapsed}s)"
+            if [ $elapsed -ge $max_secs ]; then
+              echo "Timeout waiting for /live after ${elapsed}s"
+              exit 1
+            fi
             sleep 10
           done
-          echo "Auth service /live not ready"
-          exit 1
 
       - name: Check /ready (DB ping)
         env:

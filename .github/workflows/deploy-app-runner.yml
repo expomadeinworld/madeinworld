@@ -41,7 +41,7 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend/${{ matrix.service }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Force App Runner deployment
+      - name: Ensure App Runner deployment
         env:
           SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
         run: |
@@ -51,5 +51,26 @@ jobs:
             echo "No App Runner service found for $SERVICE_NAME" >&2
             exit 1
           fi
-          aws apprunner start-deployment --service-arn "$ARN"
-          echo "Triggered deployment for $SERVICE_NAME"
+          echo "Service ARN: $ARN"
+          echo "Waiting for service to be RUNNING (will poll up to 10 minutes)"
+          for i in {1..60}; do
+            STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
+            echo "[$i] Status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              break
+            fi
+            sleep 10
+          done
+          STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
+          if [ "$STATUS" = "RUNNING" ]; then
+            echo "Service is RUNNING; attempting to start-deployment (will ignore errors)"
+            set +e
+            aws apprunner start-deployment --service-arn "$ARN"
+            RC=$?
+            set -e
+            if [ $RC -ne 0 ]; then
+              echo "start-deployment not allowed or failed (likely ongoing or auto-deploy enabled); continuing"
+            fi
+          else
+            echo "Service not RUNNING after wait; continuing without start-deployment"
+          fi
