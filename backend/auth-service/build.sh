@@ -30,14 +30,14 @@ docker tag ${SERVICE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
 
 echo "Docker image built successfully!"
 
-# Login to ECR (optional - uncomment if you want to push)
-# echo "Logging in to ECR..."
-# aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+# Login to ECR
+echo "Logging in to ECR..."
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-# Push to ECR (optional - uncomment if you want to push)
-# echo "Pushing to ECR..."
-# docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-# docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+# Push to ECR
+echo "Pushing to ECR..."
+docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
 
 echo "Build completed!"
 echo "Local images:"

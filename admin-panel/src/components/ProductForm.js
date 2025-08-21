@@ -263,7 +263,6 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
       const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`, {
         method: 'GET',
         headers: {
-          'X-Admin-Request': 'true',
         },
       });
 
@@ -334,7 +333,6 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
       const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images`, {
         method: 'POST',
         headers: {
-          'X-Admin-Request': 'true',
         },
         body: formData,
       });
@@ -364,7 +362,6 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
       const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images/${imageId}`, {
         method: 'DELETE',
         headers: {
-          'X-Admin-Request': 'true',
         },
       });
 
@@ -394,8 +391,7 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
       const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images/reorder`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Request': 'true',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ image_orders: imageOrders }),
       });
@@ -421,7 +417,6 @@ const ProductForm = ({ open, onClose, onProductCreated, product = null, onProduc
       const response = await fetch(`${API_BASE}/api/v1/products/${productId}/images/${imageId}/primary`, {
         method: 'PUT',
         headers: {
-          'X-Admin-Request': 'true',
         },
       });
 

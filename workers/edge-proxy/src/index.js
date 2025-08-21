@@ -36,6 +36,9 @@ export default {
       upstream = env.AUTH_SERVICE_URL;
     } else if (originalPath.startsWith('/api/v1')) {
       upstream = env.CATALOG_SERVICE_URL;
+    } else if (originalPath.startsWith('/uploads')) {
+      // Serve static/uploads from the catalog service
+      upstream = env.CATALOG_SERVICE_URL;
     } else if (originalPath.startsWith('/api/cat')) {
       upstream = env.CATALOG_SERVICE_URL;
       rewritePath = originalPath.replace('/api/cat', '/api/v1');
@@ -92,7 +95,7 @@ function corsHeaders(origin) {
   h.set('Access-Control-Allow-Origin', origin || '*');
   h.set('Vary', 'Origin');
   h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  h.set('Access-Control-Allow-Headers', 'Origin,Content-Type,Accept,Authorization,X-Correlation-Id');
+  h.set('Access-Control-Allow-Headers', 'Origin,Content-Type,Accept,Authorization,X-Correlation-Id,X-Admin-Request');
   h.set('Access-Control-Allow-Credentials', 'true');
   return h;
 }

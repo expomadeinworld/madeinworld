@@ -145,7 +145,7 @@ const CategoryListPage = () => {
         url += `&store_id=${selectedStore.id}`;
       }
 
-      const response = await fetch(url, { headers: { 'X-Admin-Request': 'true' } });
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         // Ensure data is always an array
@@ -253,7 +253,7 @@ const CategoryListPage = () => {
         store_id: currentMiniApp.requiresStore ? selectedStore?.id : null,
       };
 
-      const response = await fetch(`http://localhost:8080/api/v1/categories/${editingCategory.id}`, {
+      const response = await fetch(`${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}/api/v1/categories/${editingCategory.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -298,7 +298,7 @@ const CategoryListPage = () => {
         subcategoryData.image_url = ''; // Will be set after image upload
       }
 
-      const response = await fetch(`http://localhost:8080/api/v1/categories/${selectedCategoryForSubcategory.id}/subcategories`, {
+      const response = await fetch(`${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}/api/v1/categories/${selectedCategoryForSubcategory.id}/subcategories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -348,7 +348,7 @@ const CategoryListPage = () => {
 
       let subcategoryData = { ...subcategoryForm };
 
-      const response = await fetch(`http://localhost:8080/api/v1/subcategories/${editingSubcategory.id}`, {
+      const response = await fetch(`${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}/api/v1/subcategories/${editingSubcategory.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -385,7 +385,7 @@ const CategoryListPage = () => {
   const handleDeleteSubcategory = async (subcategoryId) => {
     if (window.confirm('Are you sure you want to delete this subcategory?')) {
       try {
-        const response = await fetch(`http://localhost:8080/api/v1/subcategories/${subcategoryId}`, {
+        const response = await fetch(`${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}/api/v1/subcategories/${subcategoryId}`, {
           method: 'DELETE',
         });
 
@@ -407,7 +407,7 @@ const CategoryListPage = () => {
       const formData = new FormData();
       formData.append('image', file);
 
-      const response = await fetch(`http://localhost:8080/api/v1/subcategories/${subcategoryId}/image`, {
+      const response = await fetch(`${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}/api/v1/subcategories/${subcategoryId}/image`, {
         method: 'POST',
         body: formData,
       });
@@ -682,7 +682,7 @@ const CategoryListPage = () => {
                         {category.subcategories.map((subcategory) => (
                           <ListItem key={subcategory.id}>
                             <Avatar
-                              src={subcategory.image_url ? `http://localhost:8080${subcategory.image_url}` : ''}
+                              src={subcategory.image_url ? `${(process.env.REACT_APP_API_BASE_URL || 'https://device-api.expomadeinworld.com')}${subcategory.image_url}` : ''}
                               sx={{ mr: 2, width: 40, height: 40 }}
                             >
                               <SubcategoryIcon />

@@ -109,7 +109,7 @@ resource "aws_apprunner_service" "main_services" {
       image_repository_type = "ECR"
       image_configuration {
         port = each.value
-        runtime_environment_variables = {
+        runtime_environment_variables = merge({
           PORT               = each.value
           GIN_MODE           = "release"
           DB_HOST            = var.neon_db_host
@@ -119,7 +119,11 @@ resource "aws_apprunner_service" "main_services" {
           DB_SSLMODE         = "require"
           SES_FROM_EMAIL     = var.ses_from_email
           AWS_DEFAULT_REGION = var.aws_region
-        }
+        }, each.key == "catalog-service" ? {
+          SERVICE_BASE_URL = "https://device-api.expomadeinworld.com"
+        } : each.key == "auth-service" ? {
+          ADMIN_EMAIL = "expotobsrl@gmail.com"
+        } : {})
         runtime_environment_secrets = {
           DB_PASSWORD           = var.secret_arn_db_password
           JWT_SECRET            = var.secret_arn_jwt_secret
@@ -137,7 +141,7 @@ resource "aws_apprunner_service" "main_services" {
 
   health_check_configuration {
     protocol = "HTTP"
-    path     = "/health"
+    path     = "/live"
   }
 
   tags = {

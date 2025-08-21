@@ -1,0 +1,36 @@
+name: Smoke Test Auth-Service Readiness
+
+on:
+  workflow_run:
+    workflows: ["Deploy Services to App Runner"]
+    types: ["completed"]
+
+jobs:
+  auth-ready-check:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for auth-service to be live
+        run: |
+          set -e
+          for i in {1..20}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://cmcqqznz9g.eu-central-1.awsapprunner.com/live || true)
+            if [ "$code" = "200" ]; then
+              echo "Auth service live"
+              exit 0
+            fi
+            echo "Waiting for live... ($i)"
+            sleep 10
+          done
+          echo "Auth service /live not ready"
+          exit 1
+      - name: Check /ready (DB ping)
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://cmcqqznz9g.eu-central-1.awsapprunner.com/ready || true)
+          if [ "$code" != "200" ]; then
+            echo "Auth service /ready failed with HTTP $code"
+            exit 1
+          fi
+          echo "Auth service /ready OK"
+
