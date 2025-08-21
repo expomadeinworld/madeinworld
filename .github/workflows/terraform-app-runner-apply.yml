@@ -1,0 +1,63 @@
+name: Terraform Apply (App Runner)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'terraform/app_runner/**'
+      - '.github/workflows/terraform-app-runner-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform/app_runner
+    env:
+      TF_IN_AUTOMATION: true
+      TF_INPUT: false
+      # Map GitHub Secrets to Terraform variables via TF_VAR_*
+      TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
+      TF_VAR_project: madeinworld
+      TF_VAR_neon_db_host: ${{ secrets.NEON_DB_HOST }}
+      TF_VAR_neon_db_user: ${{ secrets.NEON_DB_USER }}
+      TF_VAR_neon_db_name: ${{ secrets.NEON_DB_NAME }}
+      TF_VAR_secret_arn_db_password: ${{ secrets.SECRET_ARN_DB_PASSWORD }}
+      TF_VAR_secret_arn_jwt_secret: ${{ secrets.SECRET_ARN_JWT_SECRET }}
+      TF_VAR_secret_arn_ses_user: ${{ secrets.SECRET_ARN_SES_USER }}
+      TF_VAR_secret_arn_ses_pass: ${{ secrets.SECRET_ARN_SES_PASS }}
+      TF_VAR_ses_from_email: ${{ secrets.SES_FROM_EMAIL }}
+      TF_VAR_canary_schedule_expression: ${{ secrets.CANARY_SCHEDULE_EXPRESSION || 'rate(2 minutes)' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -no-color
+
+      - name: Terraform Apply
+        run: terraform apply -input=false -auto-approve -no-color
+
