@@ -33,6 +33,28 @@ jobs:
             exit 1
           fi
           echo "service_url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Describe auth-service
+        env:
+          SERVICE_NAME: madeinworld-auth-service-dev
+        run: |
+          set -e
+          ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
+          echo "Service ARN: $ARN"
+          aws apprunner describe-service --service-arn "$ARN" || true
+
+      - name: Quick probe of endpoints
+        env:
+          URL: ${{ steps.resolve.outputs.service_url }}
+        run: |
+          set -e
+          echo "Probing: $URL"
+          for P in / /health /live /ready; do
+            echo "-- curl $URL$P"
+            curl -s -i "$URL$P" || true
+            echo
+          done
+
           echo "Resolved URL: $URL"
 
       - name: Wait for auth-service to be live
