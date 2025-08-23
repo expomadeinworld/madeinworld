@@ -18,12 +18,14 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
-	// Initialize database connection
+	// Initialize database connection (non-fatal to allow liveness health checks)
 	database, err := db.NewDatabase()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("[WARN] Database initialization failed at startup: %v", err)
 	}
-	defer database.Close()
+	if database != nil {
+		defer database.Close()
+	}
 
 	// Initialize handlers
 	handler := api.NewHandler(database)
@@ -69,7 +71,8 @@ func setupRouter(handler *api.Handler) *gin.Engine {
 	// Health and readiness endpoints
 	router.GET("/live", func(c *gin.Context) { c.Status(200) })
 	router.GET("/ready", handler.Health)
-	router.GET("/health", handler.Health)
+	// Keep /health as liveness-only for App Runner health checks
+	router.GET("/health", func(c *gin.Context) { c.Status(200) })
 
 	// API routes with JWT protection
 	apiGroup := router.Group("/api")
