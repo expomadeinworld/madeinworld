@@ -68,9 +68,32 @@ func NewDatabase() (*Database, error) {
 
 	origHost := poolConfig.ConnConfig.Host
 
+	// Force IPv4 when available by resolving the host to an A record and dialing that IP directly.
+	// Falls back to dual stack if no IPv4 is available. Preserve TLS SNI/ServerName with the original host.
 	poolConfig.ConnConfig.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
-		d := &net.Dialer{}
-		return d.DialContext(ctx, "tcp4", address)
+		// address is typically "host:port". Resolve to prefer IPv4, otherwise fall back to first IP (likely IPv6).
+		host, port, err := net.SplitHostPort(address)
+		if err != nil || host == "" || port == "" {
+			// Fallback to original host if split fails
+			host = origHost
+			port = "5432"
+		}
+
+		// Lookup all IPs and prefer IPv4
+		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err == nil {
+			for _, ipa := range ips {
+				if ipv4 := ipa.IP.To4(); ipv4 != nil {
+					return (&net.Dialer{}).DialContext(ctx, "tcp4", net.JoinHostPort(ipv4.String(), port))
+				}
+			}
+			// No IPv4 found: try first IP (likely IPv6) with tcp
+			if len(ips) > 0 {
+				return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(ips[0].IP.String(), port))
+			}
+		}
+		// DNS lookup failed: fall back to provided address with tcp4 to keep behavior
+		return (&net.Dialer{}).DialContext(ctx, "tcp4", address)
 	}
 	if poolConfig.ConnConfig.TLSConfig != nil && poolConfig.ConnConfig.TLSConfig.ServerName == "" {
 		poolConfig.ConnConfig.TLSConfig.ServerName = origHost
