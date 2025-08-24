@@ -137,13 +137,15 @@ resource "aws_apprunner_service" "main_services" {
         } : each.key == "auth-service" ? {
           ADMIN_EMAIL = "expotobsrl@gmail.com"
         } : {})
-        runtime_environment_secrets = merge({
-          DB_PASSWORD = var.secret_arn_db_password
-          JWT_SECRET  = var.secret_arn_jwt_secret
-        }, (var.secret_arn_ses_user != "" && var.secret_arn_ses_pass != "") ? {
-          AWS_ACCESS_KEY_ID     = var.secret_arn_ses_user
-          AWS_SECRET_ACCESS_KEY = var.secret_arn_ses_pass
-        } : {})
+        runtime_environment_secrets = merge(
+          {},
+          length(trim(var.secret_arn_db_password)) > 0 ? { DB_PASSWORD = var.secret_arn_db_password } : {},
+          length(trim(var.secret_arn_jwt_secret))  > 0 ? { JWT_SECRET  = var.secret_arn_jwt_secret  } : {},
+          (length(trim(var.secret_arn_ses_user)) > 0 && length(trim(var.secret_arn_ses_pass)) > 0) ? {
+            AWS_ACCESS_KEY_ID     = var.secret_arn_ses_user
+            AWS_SECRET_ACCESS_KEY = var.secret_arn_ses_pass
+          } : {}
+        )
       }
     }
     auto_deployments_enabled = true
