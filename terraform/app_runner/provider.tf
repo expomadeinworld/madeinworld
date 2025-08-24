@@ -12,6 +12,10 @@ terraform {
       version = "~> 2.4"
     }
   }
+
+  # Remote backend for shared state across CI and local
+  # Values provided at init via -backend-config flags
+  backend "s3" {}
 }
 
 provider "aws" {
