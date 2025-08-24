@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/expomadeinworld/madeinworld/catalog-service/internal/models"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -69,9 +70,28 @@ func NewDatabase() (*Database, error) {
 
 	origHost := poolConfig.ConnConfig.Host
 
+	// Prefer simple protocol (no prepared statements) to be Neon pooler friendly
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+
 	poolConfig.ConnConfig.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
-		d := &net.Dialer{}
-		return d.DialContext(ctx, "tcp4", address)
+		// Prefer IPv4 when available, fall back to dual-stack
+		host, port, err := net.SplitHostPort(address)
+		if err != nil || host == "" || port == "" {
+			host = origHost
+			port = "5432"
+		}
+		ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err == nil {
+			for _, ipa := range ips {
+				if ipv4 := ipa.IP.To4(); ipv4 != nil {
+					return (&net.Dialer{}).DialContext(ctx, "tcp4", net.JoinHostPort(ipv4.String(), port))
+				}
+			}
+			if len(ips) > 0 {
+				return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(ips[0].IP.String(), port))
+			}
+		}
+		return (&net.Dialer{}).DialContext(ctx, "tcp", address)
 	}
 	if poolConfig.ConnConfig.TLSConfig != nil && poolConfig.ConnConfig.TLSConfig.ServerName == "" {
 		poolConfig.ConnConfig.TLSConfig.ServerName = origHost

@@ -30,11 +30,18 @@ func NewHandler(database *db.Database) *Handler {
 	}
 }
 
-// Health endpoint for health checks
+// Health endpoint for health checks (readiness)
 func (h *Handler) Health(c *gin.Context) {
+	// If DB is not initialized yet, report not ready without panicking
+	if h.DB == nil {
+		c.JSON(http.StatusServiceUnavailable, models.ErrorResponse{
+			Error:   "Database not initialized",
+			Message: "Service starting up; DB unavailable",
+		})
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	if err := h.DB.Health(ctx); err != nil {
 		c.JSON(http.StatusServiceUnavailable, models.ErrorResponse{
 			Error:   "Database connection failed",
@@ -42,7 +49,6 @@ func (h *Handler) Health(c *gin.Context) {
 		})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
 		"service":   "auth-service",

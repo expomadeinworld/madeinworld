@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -65,6 +66,8 @@ func NewDatabase() (*Database, error) {
 	poolConfig.MinConns = 5
 	poolConfig.MaxConnLifetime = time.Hour
 	poolConfig.MaxConnIdleTime = time.Minute * 30
+	// Prefer simple protocol to be Neon pooler friendly
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	origHost := poolConfig.ConnConfig.Host
 

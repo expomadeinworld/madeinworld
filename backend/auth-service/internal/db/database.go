@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/expomadeinworld/madeinworld/auth-service/internal/models"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -68,6 +69,8 @@ func NewDatabase() (*Database, error) {
 	poolConfig.MinConns = 5
 	poolConfig.MaxConnLifetime = time.Hour
 	poolConfig.MaxConnIdleTime = time.Minute * 30
+	// Prefer simple protocol (no prepared statements) to be PgBouncer/Neon pooler friendly
+	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	origHost := poolConfig.ConnConfig.Host
 
@@ -95,8 +98,8 @@ func NewDatabase() (*Database, error) {
 				return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(ips[0].IP.String(), port))
 			}
 		}
-		// DNS lookup failed: fall back to provided address with tcp4 to keep behavior
-		return (&net.Dialer{}).DialContext(ctx, "tcp4", address)
+		// DNS lookup failed: fall back to provided address using dual-stack tcp (handles IPv6-only)
+		return (&net.Dialer{}).DialContext(ctx, "tcp", address)
 	}
 	if poolConfig.ConnConfig.TLSConfig != nil && poolConfig.ConnConfig.TLSConfig.ServerName == "" {
 		poolConfig.ConnConfig.TLSConfig.ServerName = origHost

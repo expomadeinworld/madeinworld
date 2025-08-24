@@ -5,6 +5,12 @@ locals {
   jwt_secret_base = replace(var.secret_arn_jwt_secret,  "/:[^:]+::$/", "")
   ses_user_base   = replace(var.secret_arn_ses_user,     "/:[^:]+::$/", "")
   ses_pass_base   = replace(var.secret_arn_ses_pass,     "/:[^:]+::$/", "")
+
+  # Ensure we always use Neon connection pooler. If the provided host already contains
+  # "-pooler.", keep it as-is. Otherwise, insert "-pooler" before the first dot.
+  neon_host_parts         = split(".", var.neon_db_host)
+  neon_pooler_host_guess  = format("%s-pooler.%s", local.neon_host_parts[0], join(".", slice(local.neon_host_parts, 1, length(local.neon_host_parts))))
+  neon_effective_db_host  = can(regex("-pooler\\.", var.neon_db_host)) ? var.neon_db_host : local.neon_pooler_host_guess
 }
 
 data "aws_caller_identity" "current" {}
@@ -112,7 +118,7 @@ resource "aws_apprunner_service" "main_services" {
         runtime_environment_variables = merge({
           PORT               = each.value
           GIN_MODE           = "release"
-          DB_HOST            = var.neon_db_host
+          DB_HOST            = local.neon_effective_db_host
           DB_PORT            = "5432"
           DB_USER            = var.neon_db_user
           DB_NAME            = var.neon_db_name
