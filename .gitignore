@@ -276,6 +276,7 @@ test-image2.jpg
 test_image.txt
 error.txt
 create_test_image.py
+logs.txt
 
 # Root level node_modules (should be in admin-panel only)
 /node_modules/
