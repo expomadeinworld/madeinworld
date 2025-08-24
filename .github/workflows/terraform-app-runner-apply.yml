@@ -29,7 +29,7 @@ jobs:
       TF_VAR_secret_arn_db_password: ${{ secrets.SECRET_ARN_DB_PASSWORD || secrets.DB_SECRET_ARN }}
       TF_VAR_secret_arn_jwt_secret: ${{ secrets.SECRET_ARN_JWT_SECRET || secrets.JWT_SECRET_ARN }}
       TF_VAR_secret_arn_ses_user: ${{ secrets.SECRET_ARN_SES_USER || secrets.SES_SMTP_USER_ARN }}
-      TF_VAR_secret_arn_ses_pass: ${{ secrets.SECRET_ARN_SES_PASS || secrets.SES_SMTP_USER_ARN }}
+      TF_VAR_secret_arn_ses_pass: ${{ secrets.SECRET_ARN_SES_PASS || secrets.SES_SMTP_PASS_ARN }}
       TF_VAR_ses_from_email: ${{ secrets.SES_FROM_EMAIL }}
       TF_VAR_canary_schedule_expression: ${{ secrets.CANARY_SCHEDULE_EXPRESSION || 'rate(2 minutes)' }}
 
@@ -85,10 +85,10 @@ jobs:
           # Import S3 bucket (canary artifacts)
           safe_import aws_s3_bucket.synthetics_artifacts "madeinworld-synthetics-artifacts"
 
-          # Import IAM roles used as data sources (to avoid drift destroy)
+          # Import IAM roles and policy (managed in TF)
           safe_import aws_iam_role.apprunner_ecr_access_role   "madeinworld-apprunner-ecr-access-role"
           safe_import aws_iam_role.apprunner_instance_role     "madeinworld-apprunner-instance-role"
-          safe_import aws_iam_role.synthetics_role             "madeinworld-synthetics-role"
+          safe_import aws_iam_policy.apprunner_secrets_policy  "arn:aws:iam::${ACCOUNT_ID}:policy/madeinworld-apprunner-secrets-policy"
 
           # Import App Runner services by discovering ARNs dynamically (no hardcoded IDs)
           for svc in auth-service catalog-service order-service user-service; do
