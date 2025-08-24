@@ -23,46 +23,26 @@ locals {
   neon_host_parts         = split(".", var.neon_db_host)
   neon_pooler_host_guess  = format("%s-pooler.%s", local.neon_host_parts[0], join(".", slice(local.neon_host_parts, 1, length(local.neon_host_parts))))
   neon_effective_db_host  = can(regex("-pooler\\.", var.neon_db_host)) ? var.neon_db_host : local.neon_pooler_host_guess
-}
 
-data "aws_caller_identity" "current" {}
-
-# Use existing IAM Roles and Policy (avoid creating duplicates)
-# ECR access role used by App Runner to pull from ECR
-data "aws_iam_role" "apprunner_ecr_access_role" {
-  name = "${var.project}-apprunner-ecr-access-role"
-}
-
-resource "aws_iam_role_policy_attachment" "apprunner_ecr_access" {
-  role       = data.aws_iam_role.apprunner_ecr_access_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
-}
-
-# Instance role used by running App Runner service to read Secrets Manager
-data "aws_iam_role" "apprunner_instance_role" {
-  name = "${var.project}-apprunner-instance-role"
-}
-
-# Pre-created policy that grants secretsmanager:GetSecretValue to selected ARNs
-# We look it up by ARN using the current account id
-locals {
-  apprunner_secrets_policy_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.project}-apprunner-secrets-policy"
-}
-
-resource "aws_iam_role_policy_attachment" "apprunner_secrets_access" {
-  role       = data.aws_iam_role.apprunner_instance_role.name
-  policy_arn = local.apprunner_secrets_policy_arn
-}
-
-
-# --- EXISTING RESOURCES, NOW MODIFIED ---
-locals {
   services = {
     auth-service    = "8081"
     catalog-service = "8080"
     order-service   = "8082"
     user-service    = "8083"
   }
+}
+
+data "aws_caller_identity" "current" {}
+
+# Managed IAM resources are defined in iam.tf
+# - aws_iam_role.apprunner_ecr_access_role
+# - aws_iam_role.apprunner_instance_role
+# - aws_iam_policy.apprunner_secrets_policy
+# - aws_iam_role_policy_attachment.apprunner_secrets_access
+
+resource "aws_iam_role_policy_attachment" "apprunner_ecr_access" {
+  role       = aws_iam_role.apprunner_ecr_access_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
 }
 
 resource "aws_ecr_repository" "service_repos" {
@@ -81,7 +61,7 @@ resource "aws_apprunner_service" "main_services" {
 
   source_configuration {
     authentication_configuration {
-      access_role_arn = data.aws_iam_role.apprunner_ecr_access_role.arn
+      access_role_arn = aws_iam_role.apprunner_ecr_access_role.arn
     }
     image_repository {
       image_identifier      = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/${var.project}/${each.key}:latest"
@@ -118,7 +98,7 @@ resource "aws_apprunner_service" "main_services" {
   }
 
   instance_configuration {
-    instance_role_arn = data.aws_iam_role.apprunner_instance_role.arn
+    instance_role_arn = aws_iam_role.apprunner_instance_role.arn
   }
 
   health_check_configuration {
