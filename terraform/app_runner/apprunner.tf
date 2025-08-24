@@ -6,6 +6,18 @@ locals {
   ses_user_base   = replace(var.secret_arn_ses_user,     "/:[^:]+::$/", "")
   ses_pass_base   = replace(var.secret_arn_ses_pass,     "/:[^:]+::$/", "")
 
+  # Build a clean list of secret ARNs (skip empty values) to avoid malformed IAM policies
+  secret_arns = [for v in [
+    var.secret_arn_db_password != "" ? db_secret_base         : "",
+    var.secret_arn_db_password != "" ? var.secret_arn_db_password : "",
+    var.secret_arn_jwt_secret  != "" ? jwt_secret_base        : "",
+    var.secret_arn_jwt_secret  != "" ? var.secret_arn_jwt_secret  : "",
+    var.secret_arn_ses_user    != "" ? ses_user_base          : "",
+    var.secret_arn_ses_user    != "" ? var.secret_arn_ses_user    : "",
+    var.secret_arn_ses_pass    != "" ? ses_pass_base          : "",
+    var.secret_arn_ses_pass    != "" ? var.secret_arn_ses_pass    : "",
+  ] : v if v != ""]
+
   # Ensure we always use Neon connection pooler. If the provided host already contains
   # "-pooler.", keep it as-is. Otherwise, insert "-pooler" before the first dot.
   neon_host_parts         = split(".", var.neon_db_host)
@@ -65,12 +77,7 @@ resource "aws_iam_policy" "apprunner_secrets_policy" {
       {
         Effect = "Allow"
         Action = "secretsmanager:GetSecretValue"
-        Resource = [
-          local.db_secret_base,  var.secret_arn_db_password,
-          local.jwt_secret_base, var.secret_arn_jwt_secret,
-          local.ses_user_base,   var.secret_arn_ses_user,
-          local.ses_pass_base,   var.secret_arn_ses_pass,
-        ]
+        Resource = local.secret_arns
       }
     ]
   })
@@ -130,12 +137,13 @@ resource "aws_apprunner_service" "main_services" {
         } : each.key == "auth-service" ? {
           ADMIN_EMAIL = "expotobsrl@gmail.com"
         } : {})
-        runtime_environment_secrets = {
-          DB_PASSWORD           = var.secret_arn_db_password
-          JWT_SECRET            = var.secret_arn_jwt_secret
+        runtime_environment_secrets = merge({
+          DB_PASSWORD = var.secret_arn_db_password
+          JWT_SECRET  = var.secret_arn_jwt_secret
+        }, (var.secret_arn_ses_user != "" && var.secret_arn_ses_pass != "") ? {
           AWS_ACCESS_KEY_ID     = var.secret_arn_ses_user
           AWS_SECRET_ACCESS_KEY = var.secret_arn_ses_pass
-        }
+        } : {})
       }
     }
     auto_deployments_enabled = true
