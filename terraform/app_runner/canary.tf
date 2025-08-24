@@ -60,9 +60,6 @@ resource "aws_synthetics_canary" "auth_ready" {
     }
   }
 
-  s3_bucket  = aws_s3_bucket.synthetics_artifacts.bucket
-  s3_key     = aws_s3_object.canary_code.key
-  s3_version = null
 }
 
 variable "canary_schedule_expression" {
