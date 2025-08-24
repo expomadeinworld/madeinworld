@@ -49,13 +49,9 @@ locals {
   apprunner_secrets_policy_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.project}-apprunner-secrets-policy"
 }
 
-data "aws_iam_policy" "apprunner_secrets_policy" {
-  arn = local.apprunner_secrets_policy_arn
-}
-
 resource "aws_iam_role_policy_attachment" "apprunner_secrets_access" {
   role       = data.aws_iam_role.apprunner_instance_role.name
-  policy_arn = data.aws_iam_policy.apprunner_secrets_policy.arn
+  policy_arn = local.apprunner_secrets_policy_arn
 }
 
 
