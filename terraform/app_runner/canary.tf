@@ -4,9 +4,8 @@ locals {
   synthetics_bucket_name = "${var.project}-synthetics-artifacts"
 }
 
-resource "aws_s3_bucket" "synthetics_artifacts" {
-  bucket        = local.synthetics_bucket_name
-  force_destroy = true
+data "aws_s3_bucket" "synthetics_artifacts" {
+  bucket = local.synthetics_bucket_name
 }
 
 resource "aws_iam_role" "synthetics_role" {
@@ -23,6 +22,9 @@ resource "aws_iam_role" "synthetics_role" {
       Action = "sts:AssumeRole"
     }]
   })
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "synthetics_full_access" {
@@ -43,7 +45,7 @@ resource "aws_iam_role_policy_attachment" "s3_rw" {
 # Canary that polls auth-service /ready every 2 minutes
 resource "aws_synthetics_canary" "auth_ready" {
   name                 = "${var.project}-auth-ready"
-  artifact_s3_location = "s3://${aws_s3_bucket.synthetics_artifacts.bucket}"
+  artifact_s3_location = "s3://${data.aws_s3_bucket.synthetics_artifacts.bucket}"
   execution_role_arn   = aws_iam_role.synthetics_role.arn
   handler              = "index.handler"
   zip_file             = data.archive_file.auth_ready_zip.output_path
