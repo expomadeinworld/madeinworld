@@ -39,10 +39,14 @@ func main() {
 	// Initialize handlers (DB may be nil; /ready will report accordingly)
 	handler := api.NewHandler(database)
 
-	// Initialize cleanup service (runs every 30 minutes)
-	cleanupService := services.NewCleanupService(database, 30)
-	cleanupService.Start()
-	defer cleanupService.Stop()
+	// Initialize cleanup service (runs every 30 minutes) only if DB is available
+	if database != nil {
+		cleanupService := services.NewCleanupService(database, 30)
+		cleanupService.Start()
+		defer cleanupService.Stop()
+	} else {
+		log.Println("[WARN] Skipping cleanup service start; database unavailable at startup")
+	}
 
 	// Set up Gin router
 	router := setupRouter(handler)
