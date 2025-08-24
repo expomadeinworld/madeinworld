@@ -8,37 +8,22 @@ data "aws_s3_bucket" "synthetics_artifacts" {
   bucket = local.synthetics_bucket_name
 }
 
-resource "aws_iam_role" "synthetics_role" {
+data "aws_iam_role" "synthetics_role" {
   name = "${var.project}-synthetics-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-      Action = "sts:AssumeRole"
-    },{
-      Effect = "Allow"
-      Principal = { Service = "synthetics.amazonaws.com" }
-      Action = "sts:AssumeRole"
-    }]
-  })
-  lifecycle {
-    ignore_changes = [name]
-  }
 }
 
 resource "aws_iam_role_policy_attachment" "synthetics_full_access" {
-  role       = aws_iam_role.synthetics_role.name
+  role       = data.aws_iam_role.synthetics_role.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchSyntheticsFullAccess"
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_basic" {
-  role       = aws_iam_role.synthetics_role.name
+  role       = data.aws_iam_role.synthetics_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_iam_role_policy_attachment" "s3_rw" {
-  role       = aws_iam_role.synthetics_role.name
+  role       = data.aws_iam_role.synthetics_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
@@ -46,7 +31,7 @@ resource "aws_iam_role_policy_attachment" "s3_rw" {
 resource "aws_synthetics_canary" "auth_ready" {
   name                 = "${var.project}-auth-ready"
   artifact_s3_location = "s3://${data.aws_s3_bucket.synthetics_artifacts.bucket}"
-  execution_role_arn   = aws_iam_role.synthetics_role.arn
+  execution_role_arn   = data.aws_iam_role.synthetics_role.arn
   handler              = "index.handler"
   zip_file             = data.archive_file.auth_ready_zip.output_path
 

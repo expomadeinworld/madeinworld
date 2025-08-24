@@ -90,7 +90,7 @@ jobs:
 
           # IAM policy for secrets access (compute ARN from current account)
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ensure_import aws_iam_policy.apprunner_secrets_policy "arn:aws:iam::${ACCOUNT_ID}:policy/${TF_VAR_project}-apprunner-secrets-policy"
+          # Secrets policy is now looked up as a data source in Terraform; no import needed
 
           # S3 bucket for canary artifacts
           ensure_import aws_s3_bucket.synthetics_artifacts madeinworld-synthetics-artifacts
