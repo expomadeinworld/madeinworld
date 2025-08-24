@@ -27,10 +27,11 @@ jobs:
       TF_VAR_neon_db_host: ${{ secrets.NEON_DB_HOST }}
       TF_VAR_neon_db_user: ${{ secrets.NEON_DB_USER }}
       TF_VAR_neon_db_name: ${{ secrets.NEON_DB_NAME }}
-      TF_VAR_secret_arn_db_password: ${{ secrets.SECRET_ARN_DB_PASSWORD }}
-      TF_VAR_secret_arn_jwt_secret: ${{ secrets.SECRET_ARN_JWT_SECRET }}
-      TF_VAR_secret_arn_ses_user: ${{ secrets.SECRET_ARN_SES_USER }}
-      TF_VAR_secret_arn_ses_pass: ${{ secrets.SECRET_ARN_SES_PASS }}
+      # Support both old and new secret names
+      TF_VAR_secret_arn_db_password: ${{ secrets.SECRET_ARN_DB_PASSWORD || secrets.DB_SECRET_ARN }}
+      TF_VAR_secret_arn_jwt_secret: ${{ secrets.SECRET_ARN_JWT_SECRET || secrets.JWT_SECRET_ARN }}
+      TF_VAR_secret_arn_ses_user: ${{ secrets.SECRET_ARN_SES_USER || secrets.SES_SMTP_USER_ARN }}
+      TF_VAR_secret_arn_ses_pass: ${{ secrets.SECRET_ARN_SES_PASS || secrets.SES_SMTP_PASS_ARN }}
       TF_VAR_ses_from_email: ${{ secrets.SES_FROM_EMAIL }}
       TF_VAR_canary_schedule_expression: ${{ secrets.CANARY_SCHEDULE_EXPRESSION || 'rate(2 minutes)' }}
 
@@ -55,9 +56,23 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Terraform Import existing infra (idempotent)
+        run: |
+          set -e
+          # ECR repos
+          for NAME in auth-service catalog-service order-service user-service; do
+            echo "Importing ECR repo: $NAME (if exists)"
+            terraform import -input=false -no-color "aws_ecr_repository.service_repos[\"$NAME\"]" "madeinworld/$NAME" || true
+          done
+          # IAM roles for App Runner and Synthetics
+          terraform import -input=false -no-color aws_iam_role.apprunner_ecr_access_role madeinworld-apprunner-ecr-access-role || true
+          terraform import -input=false -no-color aws_iam_role.apprunner_instance_role   madeinworld-apprunner-instance-role   || true
+          terraform import -input=false -no-color aws_iam_role.synthetics_role           madeinworld-synthetics-role          || true
+          # S3 bucket for canary artifacts
+          terraform import -input=false -no-color aws_s3_bucket.synthetics_artifacts     madeinworld-synthetics-artifacts     || true
+
       - name: Terraform Plan
         run: terraform plan -input=false -no-color
 
       - name: Terraform Apply
         run: terraform apply -input=false -auto-approve -no-color
-
