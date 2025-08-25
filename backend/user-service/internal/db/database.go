@@ -31,8 +31,13 @@ type Database struct {
 	DB *sql.DB
 }
 
-// NewDatabase creates a new database connection
+// NewDatabase creates a new database connection with retry logic for serverless databases
 func NewDatabase() (*Database, error) {
+	return NewDatabaseWithRetry(5, time.Second)
+}
+
+// NewDatabaseWithRetry creates a new database connection with configurable retry logic
+func NewDatabaseWithRetry(maxRetries int, initialDelay time.Duration) (*Database, error) {
 	// Get database configuration from environment variables
 	host := os.Getenv("DB_HOST")
 	if host == "" {
@@ -72,25 +77,60 @@ func NewDatabase() (*Database, error) {
 			host, port, user, password, dbname, sslmode)
 	}
 
-	// Open database connection
-	connector, err := pq.NewConnector(connStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build pq connector: %w", err)
-	}
-	connector.Dialer(ipv4Dialer{})
-	db := sql.OpenDB(connector)
+	// Attempt to connect with retry logic for serverless databases (e.g., Neon cold start)
+	var db *sql.DB
+	var lastErr error
 
-	// Test the connection
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		log.Printf("[USER-DB] Connection attempt %d/%d to database %s@%s:%s",
+			attempt, maxRetries, user, host, port)
+
+		// Open database connection
+		connector, err := pq.NewConnector(connStr)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to build pq connector: %w", err)
+			log.Printf("[USER-DB] Failed to create connector (attempt %d): %v", attempt, err)
+			if attempt < maxRetries {
+				delay := time.Duration(attempt-1) * initialDelay
+				log.Printf("[USER-DB] Retrying in %v...", delay)
+				time.Sleep(delay)
+			}
+			continue
+		}
+
+		connector.Dialer(ipv4Dialer{})
+		db = sql.OpenDB(connector)
+
+		// Test the connection
+		err = db.Ping()
+		if err == nil {
+			log.Printf("[USER-DB] Successfully connected to database on attempt %d", attempt)
+			break
+		}
+
+		// Connection failed, clean up and retry
+		lastErr = fmt.Errorf("failed to ping database: %w", err)
+		log.Printf("[USER-DB] Connection failed (attempt %d): %v", attempt, err)
+		db.Close()
+		db = nil
+
+		if attempt < maxRetries {
+			// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+			delay := initialDelay * time.Duration(1<<(attempt-1))
+			log.Printf("[USER-DB] Retrying in %v...", delay)
+			time.Sleep(delay)
+		}
+	}
+
+	if db == nil {
+		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, lastErr)
 	}
 
 	// Configure connection pool
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 
-	log.Printf("Successfully connected to database: %s@%s:%s/%s", user, host, port, dbname)
-
+	log.Printf("[USER-DB] Database connection established successfully: %s@%s:%s/%s", user, host, port, dbname)
 	return &Database{DB: db}, nil
 }
 

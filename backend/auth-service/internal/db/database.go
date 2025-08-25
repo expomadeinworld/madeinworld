@@ -31,8 +31,13 @@ type Config struct {
 	SSLMode  string
 }
 
-// NewDatabase creates a new database connection
+// NewDatabase creates a new database connection with retry logic for serverless databases
 func NewDatabase() (*Database, error) {
+	return NewDatabaseWithRetry(5, time.Second)
+}
+
+// NewDatabaseWithRetry creates a new database connection with configurable retry logic
+func NewDatabaseWithRetry(maxRetries int, initialDelay time.Duration) (*Database, error) {
 	config := getConfigFromEnv()
 
 	// Build connection string
@@ -105,33 +110,72 @@ func NewDatabase() (*Database, error) {
 		poolConfig.ConnConfig.TLSConfig.ServerName = origHost
 	}
 
-	// Create connection pool
-	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+	// Attempt to connect with retry logic for serverless databases (e.g., Neon cold start)
+	var pool *pgxpool.Pool
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		log.Printf("[AUTH-DB] Connection attempt %d/%d to database %s@%s:%d",
+			attempt, maxRetries, config.User, config.Host, config.Port)
+
+		// Create connection pool
+		pool, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to create connection pool: %w", err)
+			log.Printf("[AUTH-DB] Failed to create pool (attempt %d): %v", attempt, err)
+			if attempt < maxRetries {
+				delay := time.Duration(attempt-1) * initialDelay
+				log.Printf("[AUTH-DB] Retrying in %v...", delay)
+				time.Sleep(delay)
+			}
+			continue
+		}
+
+		// Test the connection with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = pool.Ping(ctx)
+		cancel()
+
+		if err == nil {
+			log.Printf("[AUTH-DB] Successfully connected to database on attempt %d", attempt)
+			break
+		}
+
+		// Connection failed, clean up pool and retry
+		lastErr = fmt.Errorf("failed to ping database: %w", err)
+		log.Printf("[AUTH-DB] Connection failed (attempt %d): %v", attempt, err)
+		pool.Close()
+		pool = nil
+
+		if attempt < maxRetries {
+			// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+			delay := initialDelay * time.Duration(1<<(attempt-1))
+			log.Printf("[AUTH-DB] Retrying in %v...", delay)
+			time.Sleep(delay)
+		}
 	}
 
-	// Test the connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if pool == nil {
+		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, lastErr)
+	}
+
+	// Initialize database schema with retry-aware context
+	db := &Database{Pool: pool}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := pool.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	log.Println("Auth service successfully connected to database")
-
-	// Initialize database schema
-	db := &Database{Pool: pool}
 	if err := db.InitSchema(ctx); err != nil {
-		return nil, fmt.Errorf("failed to initialize database schema: %w", err)
+		log.Printf("[AUTH-DB] Warning: Failed to initialize database schema: %v", err)
+		// Don't fail here - schema might be initialized later
 	}
 
 	// Initialize admin verification schema
 	if err := db.InitAdminSchema(ctx); err != nil {
-		return nil, fmt.Errorf("failed to initialize admin schema: %w", err)
+		log.Printf("[AUTH-DB] Warning: Failed to initialize admin schema: %v", err)
+		// Don't fail here - schema might be initialized later
 	}
 
+	log.Println("[AUTH-DB] Database connection established successfully")
 	return db, nil
 }
 
