@@ -32,16 +32,43 @@ jobs:
             echo "Failed to resolve auth-service URL" >&2
             exit 1
           fi
+          # Ensure HTTPS URL
+          if [[ "$URL" != https://* ]]; then
+            URL="https://$URL"
+          fi
           echo "service_url=$URL" >> $GITHUB_OUTPUT
 
-      - name: Describe auth-service
+      - name: Wait for service to be running
         env:
           SERVICE_NAME: madeinworld-auth-service-dev
         run: |
           set -e
           ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
           echo "Service ARN: $ARN"
-          aws apprunner describe-service --service-arn "$ARN" || true
+
+          # Wait for service to be in RUNNING state
+          max_wait=300  # 5 minutes
+          start=$(date +%s)
+          while true; do
+            status=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
+            echo "Service status: $status"
+
+            if [ "$status" = "RUNNING" ]; then
+              echo "Service is running"
+              break
+            fi
+
+            now=$(date +%s)
+            elapsed=$((now-start))
+            if [ $elapsed -ge $max_wait ]; then
+              echo "Timeout waiting for service to be running after ${elapsed}s"
+              aws apprunner describe-service --service-arn "$ARN" || true
+              exit 1
+            fi
+
+            echo "Waiting for service to be running... (${elapsed}s elapsed)"
+            sleep 10
+          done
 
       - name: Quick probe of endpoints
         env:
@@ -51,7 +78,7 @@ jobs:
           echo "Probing: $URL"
           for P in / /health /live /ready; do
             echo "-- curl $URL$P"
-            curl -s -i "$URL$P" || true
+            curl -s -i -L --max-time 10 "$URL$P" || true
             echo
           done
 
@@ -62,21 +89,23 @@ jobs:
           URL: ${{ steps.resolve.outputs.service_url }}
         run: |
           set -e
-          max_secs=600
+          max_secs=300  # Reduced from 600s to 5 minutes
           start=$(date +%s)
           i=0
           while true; do
             i=$((i+1))
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/live" || true)
+            code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$URL/live" || echo "000")
             if [ "$code" = "200" ]; then
-              echo "Auth service live"
+              echo "Auth service /live endpoint responding with 200"
               exit 0
             fi
             now=$(date +%s)
             elapsed=$((now-start))
-            echo "Waiting for live... attempt $i (elapsed ${elapsed}s)"
+            echo "Waiting for /live... attempt $i (elapsed ${elapsed}s) - got HTTP $code"
             if [ $elapsed -ge $max_secs ]; then
               echo "Timeout waiting for /live after ${elapsed}s"
+              echo "Final probe attempt:"
+              curl -v -L --max-time 10 "$URL/live" || true
               exit 1
             fi
             sleep 10
@@ -87,10 +116,13 @@ jobs:
           URL: ${{ steps.resolve.outputs.service_url }}
         run: |
           set -e
-          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/ready" || true)
+          echo "Testing /ready endpoint (database health check)..."
+          code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 10 "$URL/ready" || echo "000")
           if [ "$code" != "200" ]; then
             echo "Auth service /ready failed with HTTP $code"
+            echo "Response details:"
+            curl -v -L --max-time 10 "$URL/ready" || true
             exit 1
           fi
-          echo "Auth service /ready OK"
+          echo "Auth service /ready OK - database connection healthy"
 
