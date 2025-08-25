@@ -2,27 +2,27 @@
 
 locals {
   db_secret_base  = replace(var.secret_arn_db_password, "/:[^:]+::$/", "")
-  jwt_secret_base = replace(var.secret_arn_jwt_secret,  "/:[^:]+::$/", "")
-  ses_user_base   = replace(var.secret_arn_ses_user,     "/:[^:]+::$/", "")
-  ses_pass_base   = replace(var.secret_arn_ses_pass,     "/:[^:]+::$/", "")
+  jwt_secret_base = replace(var.secret_arn_jwt_secret, "/:[^:]+::$/", "")
+  ses_user_base   = replace(var.secret_arn_ses_user, "/:[^:]+::$/", "")
+  ses_pass_base   = replace(var.secret_arn_ses_pass, "/:[^:]+::$/", "")
 
   # Build a clean list of secret ARNs (skip empty values) to avoid malformed IAM policies
   secret_arns = [for v in [
-    length(trimspace(var.secret_arn_db_password)) > 0 ? local.db_secret_base             : "",
-    length(trimspace(var.secret_arn_db_password)) > 0 ? var.secret_arn_db_password       : "",
-    length(trimspace(var.secret_arn_jwt_secret))  > 0 ? local.jwt_secret_base            : "",
-    length(trimspace(var.secret_arn_jwt_secret))  > 0 ? var.secret_arn_jwt_secret        : "",
-    length(trimspace(var.secret_arn_ses_user))    > 0 ? local.ses_user_base              : "",
-    length(trimspace(var.secret_arn_ses_user))    > 0 ? var.secret_arn_ses_user          : "",
-    length(trimspace(var.secret_arn_ses_pass))    > 0 ? local.ses_pass_base              : "",
-    length(trimspace(var.secret_arn_ses_pass))    > 0 ? var.secret_arn_ses_pass          : "",
+    length(trimspace(var.secret_arn_db_password)) > 0 ? local.db_secret_base : "",
+    length(trimspace(var.secret_arn_db_password)) > 0 ? var.secret_arn_db_password : "",
+    length(trimspace(var.secret_arn_jwt_secret)) > 0 ? local.jwt_secret_base : "",
+    length(trimspace(var.secret_arn_jwt_secret)) > 0 ? var.secret_arn_jwt_secret : "",
+    length(trimspace(var.secret_arn_ses_user)) > 0 ? local.ses_user_base : "",
+    length(trimspace(var.secret_arn_ses_user)) > 0 ? var.secret_arn_ses_user : "",
+    length(trimspace(var.secret_arn_ses_pass)) > 0 ? local.ses_pass_base : "",
+    length(trimspace(var.secret_arn_ses_pass)) > 0 ? var.secret_arn_ses_pass : "",
   ] : v if v != ""]
 
   # Ensure we always use Neon connection pooler. If the provided host already contains
   # "-pooler.", keep it as-is. Otherwise, insert "-pooler" before the first dot.
-  neon_host_parts         = split(".", var.neon_db_host)
-  neon_pooler_host_guess  = format("%s-pooler.%s", local.neon_host_parts[0], join(".", slice(local.neon_host_parts, 1, length(local.neon_host_parts))))
-  neon_effective_db_host  = can(regex("-pooler\\.", var.neon_db_host)) ? var.neon_db_host : local.neon_pooler_host_guess
+  neon_host_parts        = split(".", var.neon_db_host)
+  neon_pooler_host_guess = format("%s-pooler.%s", local.neon_host_parts[0], join(".", slice(local.neon_host_parts, 1, length(local.neon_host_parts))))
+  neon_effective_db_host = can(regex("-pooler\\.", var.neon_db_host)) ? var.neon_db_host : local.neon_pooler_host_guess
 
   services = {
     auth-service    = "8081"
@@ -46,8 +46,8 @@ resource "aws_iam_role_policy_attachment" "apprunner_ecr_access" {
 }
 
 resource "aws_ecr_repository" "service_repos" {
-  for_each = local.services
-  name     = "${var.project}/${each.key}"
+  for_each             = local.services
+  name                 = "${var.project}/${each.key}"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -56,8 +56,8 @@ resource "aws_ecr_repository" "service_repos" {
 }
 
 resource "aws_apprunner_service" "main_services" {
-  for_each      = local.services
-  service_name  = "${var.project}-${each.key}-dev"
+  for_each     = local.services
+  service_name = "${var.project}-${each.key}-dev"
 
   source_configuration {
     authentication_configuration {
@@ -78,15 +78,15 @@ resource "aws_apprunner_service" "main_services" {
           DB_SSLMODE         = "require"
           SES_FROM_EMAIL     = var.ses_from_email
           AWS_DEFAULT_REGION = var.aws_region
-        }, each.key == "catalog-service" ? {
+          }, each.key == "catalog-service" ? {
           SERVICE_BASE_URL = "https://device-api.expomadeinworld.com"
-        } : each.key == "auth-service" ? {
+          } : each.key == "auth-service" ? {
           ADMIN_EMAIL = "expotobsrl@gmail.com"
         } : {})
         runtime_environment_secrets = merge(
           {},
           length(trimspace(var.secret_arn_db_password)) > 0 ? { DB_PASSWORD = var.secret_arn_db_password } : {},
-          length(trimspace(var.secret_arn_jwt_secret))  > 0 ? { JWT_SECRET  = var.secret_arn_jwt_secret  } : {},
+          length(trimspace(var.secret_arn_jwt_secret)) > 0 ? { JWT_SECRET = var.secret_arn_jwt_secret } : {},
           (length(trimspace(var.secret_arn_ses_user)) > 0 && length(trimspace(var.secret_arn_ses_pass)) > 0) ? {
             AWS_ACCESS_KEY_ID     = var.secret_arn_ses_user
             AWS_SECRET_ACCESS_KEY = var.secret_arn_ses_pass

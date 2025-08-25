@@ -1,7 +1,6 @@
 # terraform/app_runner/iam.tf
 
 # Current account
-data "aws_caller_identity" "current" {}
 
 # App Runner ECR access role (assumed by App Runner to pull from ECR)
 resource "aws_iam_role" "apprunner_ecr_access_role" {
@@ -11,9 +10,9 @@ resource "aws_iam_role" "apprunner_ecr_access_role" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
+        Effect    = "Allow",
         Principal = { Service = "build.apprunner.amazonaws.com" },
-        Action   = "sts:AssumeRole"
+        Action    = "sts:AssumeRole"
       }
     ]
   })
@@ -33,9 +32,9 @@ resource "aws_iam_role" "apprunner_instance_role" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect = "Allow",
+        Effect    = "Allow",
         Principal = { Service = "tasks.apprunner.amazonaws.com" },
-        Action   = "sts:AssumeRole"
+        Action    = "sts:AssumeRole"
       }
     ]
   })
@@ -46,9 +45,8 @@ data "aws_iam_policy_document" "apprunner_secrets_doc" {
   dynamic "statement" {
     for_each = toset(local.secret_arns)
     content {
-      sid     = "AllowSecret${replace(statement.value, ":", "")}" 
-      effect  = "Allow"
-      actions = ["secretsmanager:GetSecretValue"]
+      effect    = "Allow"
+      actions   = ["secretsmanager:GetSecretValue"]
       resources = [statement.value]
     }
   }

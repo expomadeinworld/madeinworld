@@ -35,8 +35,8 @@ resource "aws_synthetics_canary" "auth_ready" {
   handler              = "index.handler"
   zip_file             = data.archive_file.auth_ready_zip.output_path
 
-  runtime_version      = "syn-nodejs-puppeteer-6.2"
-  start_canary         = true
+  runtime_version = "syn-nodejs-puppeteer-6.2"
+  start_canary    = true
   schedule {
     expression = var.canary_schedule_expression
   }
