@@ -60,24 +60,54 @@ jobs:
           fi
           echo "Service ARN: $ARN"
 
-          # Trigger deployment explicitly to pick latest:latest image
-          set +e
-          aws apprunner start-deployment --service-arn "$ARN"
-          RC=$?
-          set -e
-          if [ $RC -ne 0 ]; then
-            echo "start-deployment not allowed or failed (likely ongoing or auto-deploy enabled); continuing"
-          fi
-
-          echo "Waiting for deployment to complete (will poll up to 15 minutes)"
-          for i in {1..90}; do
+          # 1) Wait until service is RUNNING before attempting to start a deployment
+          echo "Waiting for service to be RUNNING (up to 10 minutes)"
+          for i in {1..60}; do
             STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
-            DEP_STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Deployments[0].Status" --output text 2>/dev/null || echo "unknown")
-            IMG_ID=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.ImageRepository.ImageIdentifier" --output text)
-            echo "[$i] Status: $STATUS | Deployment: $DEP_STATUS | Image: $IMG_ID"
-            if [ "$STATUS" = "RUNNING" ] && [ "$DEP_STATUS" = "SUCCEEDED" ]; then
+            echo "[pre-$i] Status: $STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
               break
             fi
+            sleep 10
+          done
+
+          STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "Service did not reach RUNNING status; continuing without manual start-deployment"
+          else
+            echo "Service is RUNNING; attempting to start-deployment"
+            set +e
+            aws apprunner start-deployment --service-arn "$ARN"
+            RC=$?
+            set -e
+            if [ $RC -ne 0 ]; then
+              echo "start-deployment not allowed or failed (likely auto-deploy enabled or no change); continuing"
+            fi
+          fi
+
+          # 2) Poll for deployment progress; if none appears but service is RUNNING, exit successfully
+          echo "Waiting for deployment to complete (will poll up to 15 minutes)"
+          running_no_dep_count=0
+          for i in {1..90}; do
+            STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
+            DEP_STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Deployments[0].Status" --output text 2>/dev/null || echo "None")
+            IMG_ID=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.ImageRepository.ImageIdentifier" --output text)
+            echo "[$i] Status: $STATUS | Deployment: $DEP_STATUS | Image: $IMG_ID"
+
+            if [ "$STATUS" = "RUNNING" ] && [ "$DEP_STATUS" = "SUCCEEDED" ]; then
+              echo "Deployment SUCCEEDED"
+              break
+            fi
+
+            if [ "$STATUS" = "RUNNING" ] && [ "$DEP_STATUS" = "None" ]; then
+              running_no_dep_count=$((running_no_dep_count+1))
+              # If RUNNING with no deployment observed for ~2 minutes, proceed
+              if [ $running_no_dep_count -ge 12 ]; then
+                echo "Service RUNNING with no active deployment detected; proceeding"
+                break
+              fi
+            fi
+
             sleep 10
           done
 
