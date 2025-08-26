@@ -20,6 +20,8 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
+	log.Printf("Auth Service starting (GIT_SHA=%s BUILD_TIME=%s)", os.Getenv("GIT_SHA"), os.Getenv("BUILD_TIME"))
+
 	// Initialize database connection (non-fatal; allow process to start for /live)
 	database, err := db.NewDatabase()
 	if err != nil {

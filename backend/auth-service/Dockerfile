@@ -2,6 +2,10 @@
 # Stage 1: Build the application
 FROM golang:1.23-alpine AS builder
 
+# Accept build metadata
+ARG GIT_SHA
+ARG BUILD_TIME
+
 # Set working directory
 WORKDIR /app
 
@@ -25,8 +29,18 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o auth-service ./cm
 # Stage 2: Create the final image
 FROM alpine:latest
 
+# Accept build metadata
+ARG GIT_SHA
+ARG BUILD_TIME
+
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates
+
+# Embed build metadata as labels and env
+LABEL org.opencontainers.image.revision="$GIT_SHA" \
+      org.opencontainers.image.created="$BUILD_TIME"
+ENV GIT_SHA="$GIT_SHA" \
+    BUILD_TIME="$BUILD_TIME"
 
 # Create a non-root user
 RUN addgroup -g 1001 -S appgroup && \

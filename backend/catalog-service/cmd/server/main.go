@@ -18,6 +18,8 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
+	log.Printf("Catalog Service starting (GIT_SHA=%s BUILD_TIME=%s)", os.Getenv("GIT_SHA"), os.Getenv("BUILD_TIME"))
+
 	// Initialize database connection
 	database, err := db.NewDatabase()
 	if err != nil {
