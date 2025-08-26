@@ -20,6 +20,9 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
+	// Ensure all log output goes to stdout so App Runner captures it in Application Logs
+	log.SetOutput(os.Stdout)
+
 	log.Printf("Auth Service starting (GIT_SHA=%s BUILD_TIME=%s)", os.Getenv("GIT_SHA"), os.Getenv("BUILD_TIME"))
 
 	// Initialize database connection (non-fatal; allow process to start for /live)
