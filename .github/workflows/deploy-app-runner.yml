@@ -36,7 +36,8 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: madeinworld/${{ matrix.service }}
-          IMAGE_TAG: latest
+          LATEST_TAG: latest
+          SHA_TAG: ${{ github.sha }}
         run: |
           set -e
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -44,9 +45,16 @@ jobs:
           docker build \
             --build-arg GIT_SHA=$GITHUB_SHA \
             --build-arg BUILD_TIME=$BUILD_TIME \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$SHA_TAG \
             ./backend/${{ matrix.service }}
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "Pushing tags: $LATEST_TAG and $SHA_TAG"
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$LATEST_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$SHA_TAG
+          echo "Resolving ECR digest for $SHA_TAG"
+          DIGEST=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag=$SHA_TAG --query 'imageDetails[0].imageDigest' --output text)
+          echo "Image digest: $DIGEST"
+          echo "ecr_image_sha_digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Ensure App Runner deployment
         env:
@@ -80,13 +88,28 @@ jobs:
               echo "Auto-deployments enabled; skipping manual start-deployment"
             else
               echo "Service is RUNNING; attempting to start-deployment"
-              set +e
-              aws apprunner start-deployment --service-arn "$ARN"
-              RC=$?
-              set -e
-              if [ $RC -ne 0 ]; then
-                echo "start-deployment not allowed or failed (no change/ongoing); continuing"
-              fi
+
+      - name: Update App Runner image to commit SHA tag
+        env:
+          SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: madeinworld/${{ matrix.service }}
+          SHA_TAG: ${{ github.sha }}
+        run: |
+          set -e
+          ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
+          if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
+            echo "No App Runner service found for $SERVICE_NAME" >&2
+            exit 1
+          fi
+          NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
+          echo "Updating service $SERVICE_NAME to image: $NEW_IMAGE"
+          aws apprunner update-service \
+            --service-arn "$ARN" \
+            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$NEW_IMAGE\",\"ImageRepositoryType\":\"ECR\",\"ImageConfiguration\":{\"Port\":\"8081\"}},\"AutoDeploymentsEnabled\":true}"
+          echo "Triggered update-service to SHA-tagged image"
+
+              echo "Manual start-deployment skipped in this workflow"
             fi
           fi
 
