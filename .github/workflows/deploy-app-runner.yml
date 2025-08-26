@@ -75,13 +75,18 @@ jobs:
           if [ "$STATUS" != "RUNNING" ]; then
             echo "Service did not reach RUNNING status; continuing without manual start-deployment"
           else
-            echo "Service is RUNNING; attempting to start-deployment"
-            set +e
-            aws apprunner start-deployment --service-arn "$ARN"
-            RC=$?
-            set -e
-            if [ $RC -ne 0 ]; then
-              echo "start-deployment not allowed or failed (likely auto-deploy enabled or no change); continuing"
+            AUTO=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.AutoDeploymentsEnabled" --output text)
+            if [ "$AUTO" = "True" ]; then
+              echo "Auto-deployments enabled; skipping manual start-deployment"
+            else
+              echo "Service is RUNNING; attempting to start-deployment"
+              set +e
+              aws apprunner start-deployment --service-arn "$ARN"
+              RC=$?
+              set -e
+              if [ $RC -ne 0 ]; then
+                echo "start-deployment not allowed or failed (no change/ongoing); continuing"
+              fi
             fi
           fi
 
