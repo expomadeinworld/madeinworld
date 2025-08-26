@@ -56,7 +56,7 @@ jobs:
           echo "Image digest: $DIGEST"
           echo "ecr_image_sha_digest=$DIGEST" >> $GITHUB_OUTPUT
 
-      - name: Ensure App Runner deployment
+      - name: Wait for App Runner service to be RUNNING
         env:
           SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
         run: |
@@ -67,8 +67,6 @@ jobs:
             exit 1
           fi
           echo "Service ARN: $ARN"
-
-          # 1) Wait until service is RUNNING before attempting to start a deployment
           echo "Waiting for service to be RUNNING (up to 10 minutes)"
           for i in {1..60}; do
             STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
@@ -78,16 +76,11 @@ jobs:
             fi
             sleep 10
           done
-
           STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
           if [ "$STATUS" != "RUNNING" ]; then
-            echo "Service did not reach RUNNING status; continuing without manual start-deployment"
-          else
-            AUTO=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.AutoDeploymentsEnabled" --output text)
-            if [ "$AUTO" = "True" ]; then
-              echo "Auto-deployments enabled; skipping manual start-deployment"
-            else
-              echo "Service is RUNNING; attempting to start-deployment"
+            echo "Service did not reach RUNNING status; exiting"
+            exit 1
+          fi
 
       - name: Update App Runner image to commit SHA tag
         env:
@@ -98,46 +91,36 @@ jobs:
         run: |
           set -e
           ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
-          if [ -z "$ARN" ] || [ "$ARN" = "None" ]; then
-            echo "No App Runner service found for $SERVICE_NAME" >&2
-            exit 1
-          fi
           NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
           echo "Updating service $SERVICE_NAME to image: $NEW_IMAGE"
           aws apprunner update-service \
             --service-arn "$ARN" \
-            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$NEW_IMAGE\",\"ImageRepositoryType\":\"ECR\",\"ImageConfiguration\":{\"Port\":\"8081\"}},\"AutoDeploymentsEnabled\":true}"
-          echo "Triggered update-service to SHA-tagged image"
+            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$NEW_IMAGE\",\"ImageRepositoryType\":\"ECR\"}}"
+          echo "Triggered update-service to SHA-tagged image: $NEW_IMAGE"
 
-              echo "Manual start-deployment skipped in this workflow"
-            fi
-          fi
-
-          # 2) Poll for deployment progress; if none appears but service is RUNNING, exit successfully
-          echo "Waiting for deployment to complete (will poll up to 15 minutes)"
-          running_no_dep_count=0
+      - name: Wait for App Runner deployment to complete
+        env:
+          SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
+        run: |
+          set -e
+          ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
+          echo "Service ARN: $ARN"
+          echo "Waiting for deployment to complete (up to 15 minutes)"
           for i in {1..90}; do
             STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
             DEP_STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Deployments[0].Status" --output text 2>/dev/null || echo "None")
             IMG_ID=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.ImageRepository.ImageIdentifier" --output text)
             echo "[$i] Status: $STATUS | Deployment: $DEP_STATUS | Image: $IMG_ID"
-
-            if [ "$STATUS" = "RUNNING" ] && [ "$DEP_STATUS" = "SUCCEEDED" ]; then
+            if [ "$DEP_STATUS" = "SUCCEEDED" ]; then
               echo "Deployment SUCCEEDED"
               break
             fi
-
-            if [ "$STATUS" = "RUNNING" ] && [ "$DEP_STATUS" = "None" ]; then
-              running_no_dep_count=$((running_no_dep_count+1))
-              # If RUNNING with no deployment observed for ~2 minutes, proceed
-              if [ $running_no_dep_count -ge 12 ]; then
-                echo "Service RUNNING with no active deployment detected; proceeding"
-                break
-              fi
+            if [ "$DEP_STATUS" = "FAILED" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_IN_PROGRESS" ]; then
+              echo "Deployment failed or service deleted: Status=$STATUS, Deployment=$DEP_STATUS" >&2
+              aws apprunner describe-service --service-arn "$ARN" || true
+              exit 1
             fi
-
             sleep 10
           done
-
           echo "Final service description:"
           aws apprunner describe-service --service-arn "$ARN"
