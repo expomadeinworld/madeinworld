@@ -15,6 +15,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         service: [auth-service, catalog-service, order-service, user-service]
 
@@ -82,6 +83,54 @@ jobs:
             echo "Service did not reach RUNNING status; exiting"
             exit 1
           fi
+
+      - name: Normalize App Runner DB secret mapping (strip :password:: if present)
+        env:
+          SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
+        run: |
+          set -e
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y jq >/dev/null 2>&1 || true
+          ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
+          echo "Service ARN: $ARN"
+          DESC=$(aws apprunner describe-service --service-arn "$ARN")
+          IMG_ID=$(echo "$DESC" | jq -r '.Service.SourceConfiguration.ImageRepository.ImageIdentifier')
+          IMG_CONF=$(echo "$DESC" | jq -c '.Service.SourceConfiguration.ImageRepository.ImageConfiguration // {}')
+          PORT=$(echo "$IMG_CONF" | jq -r '.Port // empty')
+          RUNTIME_VARS=$(echo "$IMG_CONF" | jq -c '.RuntimeEnvironmentVariables // {}')
+          SECRETS=$(echo "$IMG_CONF" | jq -c '.RuntimeEnvironmentSecrets // []')
+          NEW_SECRETS=$(echo "$SECRETS" | jq -c 'map(if .Name=="DB_PASSWORD" and (.Value|endswith(":password::")) then .Value=(.Value|sub(":password::$"; "")) else . end)')
+          if [ "$NEW_SECRETS" != "$SECRETS" ]; then
+            echo "Normalizing DB_PASSWORD secret ARN..."
+            NEW_IMG_CONF=$(jq -n --arg port "$PORT" --argjson vars "$RUNTIME_VARS" --argjson secrets "$NEW_SECRETS" '
+              ($port | length) as $hasport
+              | ({}
+                 + (if $hasport>0 then {Port:$port} else {} end)
+                 + {RuntimeEnvironmentVariables:$vars}
+                 + {RuntimeEnvironmentSecrets:$secrets}
+              )')
+            SRC=$(jq -n --arg img "$IMG_ID" --argjson conf "$NEW_IMG_CONF" '{ImageRepository:{ImageIdentifier:$img, ImageRepositoryType:"ECR", ImageConfiguration:$conf}}')
+            echo "Applying secret mapping update..."
+            OP_ID=$(aws apprunner update-service --service-arn "$ARN" --source-configuration "$SRC" --query 'OperationId' --output text)
+            echo "Secret mapping update OperationId: $OP_ID"
+            for i in {1..60}; do
+              OP_STATUS=$(aws apprunner list-operations --service-arn "$ARN" --query "OperationSummaryList[?Id=='$OP_ID'].Status | [0]" --output text)
+              echo "[$i] Secret-Update Operation: $OP_STATUS"
+              if [ "$OP_STATUS" = "SUCCEEDED" ]; then
+                echo "Secret mapping updated"
+                break
+              fi
+              if [ "$OP_STATUS" = "FAILED" ] || [ "$OP_STATUS" = "ROLLBACK_SUCCEEDED" ] || [ "$OP_STATUS" = "CANCELLED" ]; then
+                echo "Secret mapping update failed (status=$OP_STATUS)" >&2
+                aws apprunner describe-service --service-arn "$ARN" || true
+                exit 1
+              fi
+              sleep 5
+            done
+          else
+            echo "DB_PASSWORD secret ARN already normalized; no changes."
+          fi
+
 
       - name: Update App Runner image to commit SHA tag
         id: update-app-runner-image
