@@ -84,6 +84,7 @@ jobs:
           fi
 
       - name: Update App Runner image to commit SHA tag
+        id: update-app-runner-image
         env:
           SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -94,10 +95,13 @@ jobs:
           ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
           NEW_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$SHA_TAG"
           echo "Updating service $SERVICE_NAME to image: $NEW_IMAGE"
-          aws apprunner update-service \
+          OP_ID=$(aws apprunner update-service \
             --service-arn "$ARN" \
-            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$NEW_IMAGE\",\"ImageRepositoryType\":\"ECR\"}}"
+            --source-configuration "{\"ImageRepository\":{\"ImageIdentifier\":\"$NEW_IMAGE\",\"ImageRepositoryType\":\"ECR\"}}" \
+            --query 'OperationId' --output text)
           echo "Triggered update-service to SHA-tagged image: $NEW_IMAGE"
+          echo "OperationId: $OP_ID"
+          echo "op_id=$OP_ID" >> $GITHUB_OUTPUT
 
       - name: Wait for App Runner deployment to complete
         env:
@@ -107,21 +111,43 @@ jobs:
           ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn | [0]" --output text)
           echo "Service ARN: $ARN"
           echo "Waiting for deployment to complete (up to 15 minutes)"
-          for i in {1..90}; do
-            STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
-            DEP_STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Deployments[0].Status" --output text 2>/dev/null || echo "None")
-            IMG_ID=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.ImageRepository.ImageIdentifier" --output text)
-            echo "[$i] Status: $STATUS | Deployment: $DEP_STATUS | Image: $IMG_ID"
-            if [ "$DEP_STATUS" = "SUCCEEDED" ]; then
-              echo "Deployment SUCCEEDED"
-              break
-            fi
-            if [ "$DEP_STATUS" = "FAILED" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_IN_PROGRESS" ]; then
-              echo "Deployment failed or service deleted: Status=$STATUS, Deployment=$DEP_STATUS" >&2
-              aws apprunner describe-service --service-arn "$ARN" || true
-              exit 1
-            fi
-            sleep 10
-          done
+          # If we have an op_id from the previous step, use it to track progress; otherwise fall back to describe-service loop
+          OP_ID="${{ steps.update-app-runner-image.outputs.op_id }}"
+          if [ -n "$OP_ID" ] && [ "$OP_ID" != "None" ]; then
+            echo "Tracking operation: $OP_ID"
+            for i in {1..90}; do
+              OP_STATUS=$(aws apprunner list-operations --service-arn "$ARN" --query "OperationSummaryList[?Id=='$OP_ID'].Status | [0]" --output text)
+              IMG_ID=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.ImageRepository.ImageIdentifier" --output text)
+              echo "[$i] Operation: $OP_STATUS | Image: $IMG_ID"
+              if [ "$OP_STATUS" = "SUCCEEDED" ]; then
+                echo "Deployment SUCCEEDED"
+                break
+              fi
+              if [ "$OP_STATUS" = "FAILED" ]; then
+                echo "Deployment FAILED per operation status" >&2
+                aws apprunner describe-service --service-arn "$ARN" || true
+                exit 1
+              fi
+              sleep 10
+            done
+          else
+            echo "No operation id available; falling back to describe-service loop"
+            for i in {1..90}; do
+              STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Status" --output text)
+              DEP_STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.Deployments[0].Status" --output text 2>/dev/null || echo "None")
+              IMG_ID=$(aws apprunner describe-service --service-arn "$ARN" --query "Service.SourceConfiguration.ImageRepository.ImageIdentifier" --output text)
+              echo "[$i] Status: $STATUS | Deployment: $DEP_STATUS | Image: $IMG_ID"
+              if [ "$DEP_STATUS" = "SUCCEEDED" ]; then
+                echo "Deployment SUCCEEDED"
+                break
+              fi
+              if [ "$DEP_STATUS" = "FAILED" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_IN_PROGRESS" ]; then
+                echo "Deployment failed or service deleted: Status=$STATUS, Deployment=$DEP_STATUS" >&2
+                aws apprunner describe-service --service-arn "$ARN" || true
+                exit 1
+              fi
+              sleep 10
+            done
+          fi
           echo "Final service description:"
           aws apprunner describe-service --service-arn "$ARN"
