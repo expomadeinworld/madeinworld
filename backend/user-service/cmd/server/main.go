@@ -22,23 +22,6 @@ func main() {
 
 	log.Printf("User Service starting (GIT_SHA=%s BUILD_TIME=%s)", os.Getenv("GIT_SHA"), os.Getenv("BUILD_TIME"))
 
-	// TEMP DEBUG: print DB env vars (password masked) at startup
-	dbHost := os.Getenv("DB_HOST")
-	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASSWORD")
-	mask := func(s string) string {
-		if s == "" {
-			return "(empty)"
-		}
-		rs := []rune(s)
-		n := len(rs)
-		if n <= 8 {
-			return "****"
-		}
-		return string(rs[:4]) + "****" + string(rs[n-4:])
-	}
-	log.Printf("[TEMP-DEBUG] DB env -> host=%s user=%s password=%s", dbHost, dbUser, mask(dbPass))
-
 	// Initialize database connection
 	database, err := db.NewDatabase()
 	if err != nil {
