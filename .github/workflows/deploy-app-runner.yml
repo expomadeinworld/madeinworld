@@ -123,9 +123,10 @@ jobs:
                 echo "Deployment SUCCEEDED"
                 break
               fi
-              if [ "$OP_STATUS" = "FAILED" ]; then
-                echo "Deployment FAILED per operation status" >&2
+              if [ "$OP_STATUS" = "FAILED" ] || [ "$OP_STATUS" = "ROLLBACK_SUCCEEDED" ] || [ "$OP_STATUS" = "CANCELLED" ]; then
+                echo "Deployment did not succeed (status=$OP_STATUS). Printing diagnostics..." >&2
                 aws apprunner describe-service --service-arn "$ARN" || true
+                aws apprunner list-operations --service-arn "$ARN" --query "OperationSummaryList[?Id=='$OP_ID']" || true
                 exit 1
               fi
               sleep 10
@@ -141,8 +142,8 @@ jobs:
                 echo "Deployment SUCCEEDED"
                 break
               fi
-              if [ "$DEP_STATUS" = "FAILED" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_IN_PROGRESS" ]; then
-                echo "Deployment failed or service deleted: Status=$STATUS, Deployment=$DEP_STATUS" >&2
+              if [ "$DEP_STATUS" = "FAILED" ] || [ "$DEP_STATUS" = "CANCELLED" ] || [ "$DEP_STATUS" = "ROLLBACK_SUCCEEDED" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_IN_PROGRESS" ]; then
+                echo "Deployment failed or service rolled back/deleted: Status=$STATUS, Deployment=$DEP_STATUS" >&2
                 aws apprunner describe-service --service-arn "$ARN" || true
                 exit 1
               fi

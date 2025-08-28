@@ -23,12 +23,14 @@ func main() {
 
 	log.Printf("Catalog Service starting (GIT_SHA=%s BUILD_TIME=%s)", os.Getenv("GIT_SHA"), os.Getenv("BUILD_TIME"))
 
-	// Initialize database connection
+	// Initialize database connection (non-fatal; allow process to start for /live)
 	database, err := db.NewDatabase()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("[WARN] Database initialization failed at startup: %v", err)
 	}
-	defer database.Close()
+	if database != nil {
+		defer database.Close()
+	}
 
 	// Initialize handlers
 	handler := api.NewHandler(database)
