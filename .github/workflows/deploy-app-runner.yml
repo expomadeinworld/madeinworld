@@ -84,7 +84,7 @@ jobs:
             exit 1
           fi
 
-      - name: Normalize App Runner DB secret mapping (strip :password:: if present)
+      - name: "Normalize App Runner DB secret mapping (strip :password:: if present)"
         env:
           SERVICE_NAME: madeinworld-${{ matrix.service }}-dev
         run: |
@@ -99,7 +99,7 @@ jobs:
           PORT=$(echo "$IMG_CONF" | jq -r '.Port // empty')
           RUNTIME_VARS=$(echo "$IMG_CONF" | jq -c '.RuntimeEnvironmentVariables // {}')
           SECRETS=$(echo "$IMG_CONF" | jq -c '.RuntimeEnvironmentSecrets // []')
-          NEW_SECRETS=$(echo "$SECRETS" | jq -c 'map(if .Name=="DB_PASSWORD" and (.Value|endswith(":password::")) then .Value=(.Value|sub(":password::$"; "")) else . end)')
+          NEW_SECRETS=$(echo "$SECRETS" | jq -c 'map(if .Name=="DB_PASSWORD" and (.Value|endswith(":password::")) then (.Value|= sub(":password::$"; "")) else . end)')
           if [ "$NEW_SECRETS" != "$SECRETS" ]; then
             echo "Normalizing DB_PASSWORD secret ARN..."
             NEW_IMG_CONF=$(jq -n --arg port "$PORT" --argjson vars "$RUNTIME_VARS" --argjson secrets "$NEW_SECRETS" '
