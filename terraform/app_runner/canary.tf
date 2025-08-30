@@ -43,7 +43,7 @@ resource "aws_synthetics_canary" "auth_ready" {
 
   run_config {
     environment_variables = {
-      TARGET_URL = "${aws_apprunner_service.main_services["auth-service"].service_url}/ready"
+      TARGET_URL = "${aws_apprunner_service.main_services["auth-service"].service_url}/live"
     }
   }
 

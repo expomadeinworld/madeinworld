@@ -71,9 +71,9 @@ func NewDatabaseWithRetry(maxRetries int, initialDelay time.Duration) (*Database
 
 	// Set pool settings
 	poolConfig.MaxConns = 30
-	poolConfig.MinConns = 5
+	poolConfig.MinConns = 0
 	poolConfig.MaxConnLifetime = time.Hour
-	poolConfig.MaxConnIdleTime = time.Minute * 30
+	poolConfig.MaxConnIdleTime = 5 * time.Minute
 	// Prefer simple protocol (no prepared statements) to be PgBouncer/Neon pooler friendly
 	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
