@@ -59,6 +59,14 @@ resource "aws_apprunner_service" "main_services" {
   for_each     = local.services
   service_name = "${var.project}-${each.key}-dev"
 
+
+  # Avoid Terraform fighting with CI image updates; ignore image tag/drift.
+  lifecycle {
+    ignore_changes = [
+      source_configuration[0].image_repository[0].image_identifier
+    ]
+  }
+
   source_configuration {
     authentication_configuration {
       access_role_arn = aws_iam_role.apprunner_ecr_access_role.arn
