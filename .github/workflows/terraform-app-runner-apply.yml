@@ -26,7 +26,7 @@ jobs:
       TF_VAR_neon_db_host: ${{ secrets.NEON_DB_HOST }}
       TF_VAR_neon_db_user: ${{ secrets.NEON_DB_USER }}
       TF_VAR_neon_db_name: ${{ secrets.NEON_DB_NAME }}
-      TF_VAR_secret_arn_db_password: ${{ secrets.SECRET_ARN_DB_PASSWORD || secrets.DB_SECRET_ARN }}
+      TF_VAR_secret_arn_db_password: ${{ secrets.TF_VAR_SECRET_ARN_DB_PASSWORD || secrets.SECRET_ARN_DB_PASSWORD || secrets.DB_SECRET_ARN }}
       TF_VAR_secret_arn_jwt_secret: ${{ secrets.SECRET_ARN_JWT_SECRET || secrets.JWT_SECRET_ARN }}
       TF_VAR_secret_arn_ses_user: ${{ secrets.SECRET_ARN_SES_USER || secrets.SES_SMTP_USER_ARN }}
       TF_VAR_secret_arn_ses_pass: ${{ secrets.SECRET_ARN_SES_PASS || secrets.SES_SMTP_PASS_ARN }}

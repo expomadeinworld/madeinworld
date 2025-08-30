@@ -126,9 +126,10 @@ func NewDatabaseWithRetry(maxRetries int, initialDelay time.Duration) (*Database
 		return nil, fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, lastErr)
 	}
 
-	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	// Configure connection pool (reduce idle to allow Neon autosuspend)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(0)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	log.Printf("[USER-DB] Database connection established successfully: %s@%s:%s/%s", user, host, port, dbname)
 	return &Database{DB: db}, nil
